@@ -24,12 +24,12 @@ local waveStarted = false
 local waveSpawnCompleted = false
 
 -- Konfigurasi Zombie
-local ZOMBIE_HEALTH = 50
+local ZOMBIE_HEALTH = 100
 local ZOMBIE_SPEED = 12
 local ZOMBIE_DAMAGE = 25
 local ZOMBIE_ATTACK_RANGE = 6
 local ZOMBIE_ATTACK_COOLDOWN = 2
-local SPAWN_RANGE = 150
+local SPAWN_RANGE = 100
 
 -- Daftar warna shirt zombie
 local zombieColors = {
@@ -394,7 +394,7 @@ local function spawnZombie()
     
     local spawnPos = playerPos + Vector3.new(
         math.cos(angle) * distance,
-        50,
+        3,
         math.sin(angle) * distance
     )
     
