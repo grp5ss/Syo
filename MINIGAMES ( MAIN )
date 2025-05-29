@@ -1,0 +1,856 @@
+-- LocalScript untuk Zombie Enemy System (Fixed Version)
+-- Letakkan di StarterPlayerScripts atau StarterGui
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local Debris = game:GetService("Debris")
+local PathfindingService = game:GetService("PathfindingService")
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+-- Variables
+local zombies = {}
+local playerHealth = 100
+local maxPlayerHealth = 100
+local isPlayerDead = false
+local spawnWaveButton = nil
+local healthBar = nil
+local currentWave = 0
+local zombiesPerWave = 3
+local waveInProgress = false
+local waveStarted = false
+local waveSpawnCompleted = false
+
+-- Konfigurasi Zombie
+local ZOMBIE_HEALTH = 50
+local ZOMBIE_SPEED = 12
+local ZOMBIE_DAMAGE = 25
+local ZOMBIE_ATTACK_RANGE = 6
+local ZOMBIE_ATTACK_COOLDOWN = 2
+local SPAWN_RANGE = 150
+
+-- Daftar warna shirt zombie
+local zombieColors = {
+    Color3.fromRGB(0, 100, 0),   -- Hijau tua
+    Color3.fromRGB(50, 150, 50), -- Hijau sedang
+    Color3.fromRGB(100, 200, 100), -- Hijau muda
+    Color3.fromRGB(0, 80, 40),   -- Hijau gelap
+    Color3.fromRGB(0, 120, 60)   -- Hijau olive
+}
+
+-- Fungsi untuk membuat UI
+local function createUI()
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "ZombieSystemGui"
+    screenGui.Parent = playerGui
+    
+    -- Spawn Wave Button
+    local waveButton = Instance.new("TextButton")
+    waveButton.Name = "SpawnWaveButton"
+    waveButton.Size = UDim2.new(0, 120, 0, 50)
+    waveButton.Position = UDim2.new(0, 20, 0, 20)
+    waveButton.BackgroundColor3 = Color3.fromRGB(100, 200, 100)
+    waveButton.BorderSizePixel = 0
+    waveButton.Text = "Start Wave"
+    waveButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    waveButton.TextScaled = true
+    waveButton.Font = Enum.Font.GothamBold
+    waveButton.Parent = screenGui
+    
+    local waveCorner = Instance.new("UICorner")
+    waveCorner.CornerRadius = UDim.new(0, 8)
+    waveCorner.Parent = waveButton
+    
+    -- Health Bar Background
+    local healthBg = Instance.new("Frame")
+    healthBg.Name = "HealthBarBg"
+    healthBg.Size = UDim2.new(0, 200, 0, 20)
+    healthBg.Position = UDim2.new(0, 20, 0, 80)
+    healthBg.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    healthBg.BorderSizePixel = 0
+    healthBg.Parent = screenGui
+    
+    local healthBgCorner = Instance.new("UICorner")
+    healthBgCorner.CornerRadius = UDim.new(0, 10)
+    healthBgCorner.Parent = healthBg
+    
+    -- Health Bar
+    local healthBarFill = Instance.new("Frame")
+    healthBarFill.Name = "HealthBar"
+    healthBarFill.Size = UDim2.new(1, 0, 1, 0)
+    healthBarFill.Position = UDim2.new(0, 0, 0, 0)
+    healthBarFill.BackgroundColor3 = Color3.fromRGB(255, 100, 100)
+    healthBarFill.BorderSizePixel = 0
+    healthBarFill.Parent = healthBg
+    
+    local healthCorner = Instance.new("UICorner")
+    healthCorner.CornerRadius = UDim.new(0, 10)
+    healthCorner.Parent = healthBarFill
+    
+    -- Health Text
+    local healthText = Instance.new("TextLabel")
+    healthText.Name = "HealthText"
+    healthText.Size = UDim2.new(1, 0, 1, 0)
+    healthText.Position = UDim2.new(0, 0, 0, 0)
+    healthText.BackgroundTransparency = 1
+    healthText.Text = playerHealth .. "/" .. maxPlayerHealth
+    healthText.TextColor3 = Color3.fromRGB(255, 255, 255)
+    healthText.TextScaled = true
+    healthText.Font = Enum.Font.GothamBold
+    healthText.Parent = healthBg
+    
+    -- Wave Counter
+    local waveCounter = Instance.new("TextLabel")
+    waveCounter.Name = "WaveCounter"
+    waveCounter.Size = UDim2.new(0, 120, 0, 30)
+    waveCounter.Position = UDim2.new(0, 160, 0, 20)
+    waveCounter.BackgroundTransparency = 1
+    waveCounter.Text = "Wave: " .. currentWave
+    waveCounter.TextColor3 = Color3.fromRGB(255, 255, 255)
+    waveCounter.TextScaled = true
+    waveCounter.Font = Enum.Font.GothamBold
+    waveCounter.Parent = screenGui
+    
+    return waveButton, healthBarFill, healthText, waveCounter
+end
+
+-- Fungsi untuk update health bar
+local function updateHealthBar()
+    if healthBar then
+        local healthPercentage = playerHealth / maxPlayerHealth
+        local tween = TweenService:Create(healthBar, 
+            TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+            {Size = UDim2.new(healthPercentage, 0, 1, 0)}
+        )
+        tween:Play()
+        
+        -- Update health text
+        local healthText = healthBar.Parent:FindFirstChild("HealthText")
+        if healthText then
+            healthText.Text = math.max(0, playerHealth) .. "/" .. maxPlayerHealth
+        end
+        
+        -- Change color based on health
+        if healthPercentage > 0.6 then
+            healthBar.BackgroundColor3 = Color3.fromRGB(100, 255, 100)
+        elseif healthPercentage > 0.3 then
+            healthBar.BackgroundColor3 = Color3.fromRGB(255, 255, 100)
+        else
+            healthBar.BackgroundColor3 = Color3.fromRGB(255, 100, 100)
+        end
+    end
+end
+
+-- Fungsi untuk membuat zombie dengan R15 rig yang proper
+local function createZombie(position)
+    local zombie = Instance.new("Model")
+    zombie.Name = "Zombie"
+    zombie.Parent = workspace
+    
+    -- Humanoid Root Part
+    local rootPart = Instance.new("Part")
+    rootPart.Name = "HumanoidRootPart"
+    rootPart.Size = Vector3.new(2, 2, 1)
+    rootPart.Material = Enum.Material.Plastic
+    rootPart.Transparency = 1
+    rootPart.CanCollide = false
+    rootPart.Anchored = false
+    rootPart.Position = position
+    rootPart.Parent = zombie
+    
+    -- Root Joint (penting untuk movement)
+    local rootAttachment = Instance.new("Attachment")
+    rootAttachment.Name = "RootAttachment"
+    rootAttachment.Parent = rootPart
+    
+    -- Torso (Upper Torso)
+    local torso = Instance.new("Part")
+    torso.Name = "UpperTorso"
+    torso.Size = Vector3.new(2, 2, 1)
+    torso.Material = Enum.Material.Plastic
+    torso.Color = zombieColors[math.random(1, #zombieColors)]
+    torso.CanCollide = false
+    torso.Parent = zombie
+    
+    -- Motor6D untuk torso (proper welding)
+    local rootJoint = Instance.new("Motor6D")
+    rootJoint.Name = "Root"
+    rootJoint.Part0 = rootPart
+    rootJoint.Part1 = torso
+    rootJoint.C0 = CFrame.new(0, 0, 0)
+    rootJoint.C1 = CFrame.new(0, 0, 0)
+    rootJoint.Parent = rootPart
+    
+    -- Lower Torso
+    local lowerTorso = Instance.new("Part")
+    lowerTorso.Name = "LowerTorso"
+    lowerTorso.Size = Vector3.new(2, 1, 1)
+    lowerTorso.Material = Enum.Material.Plastic
+    lowerTorso.Color = zombieColors[math.random(1, #zombieColors)]
+    lowerTorso.CanCollide = false
+    lowerTorso.Parent = zombie
+    
+    local waistJoint = Instance.new("Motor6D")
+    waistJoint.Name = "Waist"
+    waistJoint.Part0 = torso
+    waistJoint.Part1 = lowerTorso
+    waistJoint.C0 = CFrame.new(0, -1.5, 0)
+    waistJoint.C1 = CFrame.new(0, 0.5, 0)
+    waistJoint.Parent = torso
+    
+    -- Head
+    local head = Instance.new("Part")
+    head.Name = "Head"
+    head.Size = Vector3.new(2, 1, 1)
+    head.Material = Enum.Material.Plastic
+    head.Color = Color3.fromRGB(150, 200, 150)
+    head.CanCollide = false
+    head.Parent = zombie
+    
+    local neckJoint = Instance.new("Motor6D")
+    neckJoint.Name = "Neck"
+    neckJoint.Part0 = torso
+    neckJoint.Part1 = head
+    neckJoint.C0 = CFrame.new(0, 1, 0)
+    neckJoint.C1 = CFrame.new(0, -0.5, 0)
+    neckJoint.Parent = torso
+    
+    -- Face
+    local face = Instance.new("Decal")
+    face.Name = "face"
+    face.Face = Enum.NormalId.Front
+    face.Texture = "rbxasset://textures/face.png"
+    face.Color3 = Color3.fromRGB(0, 255, 0)
+    face.Parent = head
+    
+    -- Arms
+    local arms = {"LeftUpperArm", "RightUpperArm"}
+    local armPositions = {Vector3.new(-1.5, 0.4, 0), Vector3.new(1.5, 0.4, 0)}
+    
+    for i, armName in ipairs(arms) do
+        local arm = Instance.new("Part")
+        arm.Name = armName
+        arm.Size = Vector3.new(1, 2, 1)
+        arm.Material = Enum.Material.Plastic
+        arm.Color = Color3.fromRGB(150, 200, 150)
+        arm.CanCollide = false
+        arm.Parent = zombie
+        
+        local shoulderJoint = Instance.new("Motor6D")
+        shoulderJoint.Name = (i == 1) and "LeftShoulder" or "RightShoulder"
+        shoulderJoint.Part0 = torso
+        shoulderJoint.Part1 = arm
+        shoulderJoint.C0 = CFrame.new(armPositions[i])
+        shoulderJoint.C1 = CFrame.new(0, 1, 0)
+        shoulderJoint.Parent = torso
+        
+        -- Lower Arms
+        local lowerArm = Instance.new("Part")
+        lowerArm.Name = (i == 1) and "LeftLowerArm" or "RightLowerArm"
+        lowerArm.Size = Vector3.new(1, 2, 1)
+        lowerArm.Material = Enum.Material.Plastic
+        lowerArm.Color = Color3.fromRGB(150, 200, 150)
+        lowerArm.CanCollide = false
+        lowerArm.Parent = zombie
+        
+        local elbowJoint = Instance.new("Motor6D")
+        elbowJoint.Name = (i == 1) and "LeftElbow" or "RightElbow"
+        elbowJoint.Part0 = arm
+        elbowJoint.Part1 = lowerArm
+        elbowJoint.C0 = CFrame.new(0, -1, 0)
+        elbowJoint.C1 = CFrame.new(0, 1, 0)
+        elbowJoint.Parent = arm
+        
+        -- Hands
+        local hand = Instance.new("Part")
+        hand.Name = (i == 1) and "LeftHand" or "RightHand"
+        hand.Size = Vector3.new(1, 0.4, 1)
+        hand.Material = Enum.Material.Plastic
+        hand.Color = Color3.fromRGB(150, 200, 150)
+        hand.CanCollide = false
+        hand.Parent = zombie
+        
+        local wristJoint = Instance.new("Motor6D")
+        wristJoint.Name = (i == 1) and "LeftWrist" or "RightWrist"
+        wristJoint.Part0 = lowerArm
+        wristJoint.Part1 = hand
+        wristJoint.C0 = CFrame.new(0, -1, 0)
+        wristJoint.C1 = CFrame.new(0, 0.2, 0)
+        wristJoint.Parent = lowerArm
+    end
+    
+    -- Legs
+    local legs = {"LeftUpperLeg", "RightUpperLeg"}
+    local legPositions = {Vector3.new(-0.5, -0.5, 0), Vector3.new(0.5, -0.5, 0)}
+    
+    for i, legName in ipairs(legs) do
+        local leg = Instance.new("Part")
+        leg.Name = legName
+        leg.Size = Vector3.new(1, 2, 1)
+        leg.Material = Enum.Material.Plastic
+        leg.Color = Color3.fromRGB(100, 150, 100)
+        leg.CanCollide = false
+        leg.Parent = zombie
+        
+        local hipJoint = Instance.new("Motor6D")
+        hipJoint.Name = (i == 1) and "LeftHip" or "RightHip"
+        hipJoint.Part0 = lowerTorso
+        hipJoint.Part1 = leg
+        hipJoint.C0 = CFrame.new(legPositions[i])
+        hipJoint.C1 = CFrame.new(0, 1, 0)
+        hipJoint.Parent = lowerTorso
+        
+        -- Lower Legs
+        local lowerLeg = Instance.new("Part")
+        lowerLeg.Name = (i == 1) and "LeftLowerLeg" or "RightLowerLeg"
+        lowerLeg.Size = Vector3.new(1, 2, 1)
+        lowerLeg.Material = Enum.Material.Plastic
+        lowerLeg.Color = Color3.fromRGB(100, 150, 100)
+        lowerLeg.CanCollide = false
+        lowerLeg.Parent = zombie
+        
+        local kneeJoint = Instance.new("Motor6D")
+        kneeJoint.Name = (i == 1) and "LeftKnee" or "RightKnee"
+        kneeJoint.Part0 = leg
+        kneeJoint.Part1 = lowerLeg
+        kneeJoint.C0 = CFrame.new(0, -1, 0)
+        kneeJoint.C1 = CFrame.new(0, 1, 0)
+        kneeJoint.Parent = leg
+        
+        -- Feet
+        local foot = Instance.new("Part")
+        foot.Name = (i == 1) and "LeftFoot" or "RightFoot"
+        foot.Size = Vector3.new(1, 0.4, 2)
+        foot.Material = Enum.Material.Plastic
+        foot.Color = Color3.fromRGB(80, 120, 80)
+        foot.CanCollide = false
+        foot.Parent = zombie
+        
+        local ankleJoint = Instance.new("Motor6D")
+        ankleJoint.Name = (i == 1) and "LeftAnkle" or "RightAnkle"
+        ankleJoint.Part0 = lowerLeg
+        ankleJoint.Part1 = foot
+        ankleJoint.C0 = CFrame.new(0, -1, 0)
+        ankleJoint.C1 = CFrame.new(0, 0.2, 0.5)
+        ankleJoint.Parent = lowerLeg
+    end
+    
+    -- Humanoid dengan proper configuration
+    local humanoid = Instance.new("Humanoid")
+    humanoid.MaxHealth = ZOMBIE_HEALTH
+    humanoid.Health = ZOMBIE_HEALTH
+    humanoid.WalkSpeed = ZOMBIE_SPEED
+    humanoid.JumpPower = 50
+    humanoid.AutoRotate = true
+    humanoid.PlatformStand = false
+    humanoid.Parent = zombie
+    humanoid.Died:Connect(function()
+    zombie:SetAttribute("IsAlive", false)
+    print("Zombie died via Humanoid.Died event")
+end)
+
+    -- Humanoid Description untuk proper R15
+    local humanoidDescription = Instance.new("HumanoidDescription")
+    humanoidDescription.Parent = humanoid
+    
+    -- Health Bar untuk zombie
+    local zombieHealthGui = Instance.new("BillboardGui")
+    zombieHealthGui.Size = UDim2.new(3, 0, 0.5, 0)
+    zombieHealthGui.StudsOffset = Vector3.new(0, 4, 0)
+    zombieHealthGui.Parent = head
+    
+    local zombieHealthBg = Instance.new("Frame")
+    zombieHealthBg.Size = UDim2.new(1, 0, 1, 0)
+    zombieHealthBg.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    zombieHealthBg.BorderSizePixel = 0
+    zombieHealthBg.Parent = zombieHealthGui
+    
+    local zombieHealthBar = Instance.new("Frame")
+    zombieHealthBar.Name = "HealthBar"
+    zombieHealthBar.Size = UDim2.new(1, 0, 1, 0)
+    zombieHealthBar.BackgroundColor3 = Color3.fromRGB(255, 100, 100)
+    zombieHealthBar.BorderSizePixel = 0
+    zombieHealthBar.Parent = zombieHealthBg
+    
+    -- Zombie AI properties
+    zombie:SetAttribute("LastAttackTime", 0)
+    zombie:SetAttribute("IsAlive", true)
+    zombie:SetAttribute("Target", nil)
+    
+    return zombie
+end
+
+-- Fungsi untuk spawn zombie di posisi random
+local function spawnZombie()
+    if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
+        return nil
+    end
+    
+    local playerPos = player.Character.HumanoidRootPart.Position
+    local angle = math.random() * math.pi * 2
+    local distance = math.random(80, SPAWN_RANGE)
+    
+    local spawnPos = playerPos + Vector3.new(
+        math.cos(angle) * distance,
+        50,
+        math.sin(angle) * distance
+    )
+    
+    -- Raycast untuk mendapatkan ground position
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+    raycastParams.FilterDescendantsInstances = {player.Character}
+    
+    local raycastResult = workspace:Raycast(spawnPos, Vector3.new(0, -100, 0), raycastParams)
+    if raycastResult then
+        spawnPos = raycastResult.Position + Vector3.new(0, 3, 0)
+    end
+    
+    local zombie = createZombie(spawnPos)
+    table.insert(zombies, zombie)
+    
+    return zombie
+end
+
+-- Fungsi AI zombie yang diperbaiki
+local function updateZombieAI(zombie)
+    if not zombie or not zombie.Parent or not zombie:GetAttribute("IsAlive") then
+        return
+    end
+    
+    if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") or isPlayerDead then
+        return
+    end
+    
+    local zombieRoot = zombie:FindFirstChild("HumanoidRootPart")
+    local zombieHumanoid = zombie:FindFirstChild("Humanoid")
+    local playerRoot = player.Character.HumanoidRootPart
+    
+    if not zombieRoot or not zombieHumanoid or zombieHumanoid.Health <= 0 then
+        return
+    end
+    
+    local distance = (playerRoot.Position - zombieRoot.Position).Magnitude
+    
+    -- Attack player jika dalam jangkauan
+    if distance <= ZOMBIE_ATTACK_RANGE then
+        -- Stop movement
+        zombieHumanoid:MoveTo(zombieRoot.Position)
+        
+        local currentTime = tick()
+        local lastAttackTime = zombie:GetAttribute("LastAttackTime") or 0
+        
+        if currentTime - lastAttackTime >= ZOMBIE_ATTACK_COOLDOWN then
+            zombie:SetAttribute("LastAttackTime", currentTime)
+            
+            -- Damage player
+            if not isPlayerDead then
+                playerHealth = playerHealth - ZOMBIE_DAMAGE
+                updateHealthBar()
+                
+                -- Screen shake effect
+                local camera = workspace.CurrentCamera
+                local originalCFrame = camera.CFrame
+                for i = 1, 5 do
+                    local shake = CFrame.new(
+                        math.random(-1, 1) * 0.3,
+                        math.random(-1, 1) * 0.3,
+                        math.random(-1, 1) * 0.3
+                    )
+                    camera.CFrame = originalCFrame * shake
+                    task.wait(0.01)
+                end
+                camera.CFrame = originalCFrame
+                
+                -- Check if player died
+                if playerHealth <= 0 then
+                    playerHealth = 0
+                    isPlayerDead = true
+                    showDeathScreen()
+                end
+            end
+        end
+    else
+        -- Move towards player menggunakan Humanoid:MoveTo (lebih stabil)
+        zombieHumanoid:MoveTo(playerRoot.Position)
+    end
+end
+
+-- Fungsi untuk update health bar zombie
+local function updateZombieHealthBar(zombie)
+    local humanoid = zombie:FindFirstChild("Humanoid")
+    local head = zombie:FindFirstChild("Head")
+    
+    if not humanoid or not head then return end
+    
+    local healthGui = head:FindFirstChild("BillboardGui")
+    if not healthGui then return end
+    
+    local healthBar = healthGui:FindFirstChildOfClass("Frame"):FindFirstChild("HealthBar")
+    if not healthBar then return end
+    
+    local healthPercentage = humanoid.Health / humanoid.MaxHealth
+    healthBar.Size = UDim2.new(healthPercentage, 0, 1, 0)
+    
+    -- Check if zombie is dead
+    if humanoid.Health <= 0 or healthPercentage <= 0 then
+        zombie:SetAttribute("IsAlive", false)
+        
+        -- Death effect
+        local deathEffect = Instance.new("Explosion")
+        deathEffect.Position = zombie.HumanoidRootPart.Position
+        deathEffect.BlastRadius = 10
+        deathEffect.BlastPressure = 0
+        deathEffect.Parent = workspace
+        
+        -- Remove zombie from list immediately
+        for i = #zombies, 1, -1 do
+            if zombies[i] == zombie then
+                table.remove(zombies, i)
+                break
+            end
+        end
+        
+        -- Destroy zombie
+        task.spawn(function()
+            task.wait(0.1) -- Shorter delay
+            if zombie and zombie.Parent then
+                zombie:Destroy()
+            end
+        end)
+        
+        print("Zombie eliminated! Remaining zombies: " .. #zombies)
+    end
+end
+
+-- Fungsi untuk spawn wave
+local function spawnWave()
+    if isPlayerDead then return end
+    
+    waveInProgress = true
+    waveStarted = true
+    waveSpawnCompleted = false  -- NEW: Set spawn not completed yet
+    currentWave = currentWave + 1
+    local zombiesToSpawn = zombiesPerWave + math.floor(currentWave / 2)
+    
+    print("Starting Wave " .. currentWave .. " with " .. zombiesToSpawn .. " zombies...")
+    
+    -- Disable button during wave
+    if spawnWaveButton then
+        spawnWaveButton.Text = "Wave " .. currentWave .. " Spawning..."
+        spawnWaveButton.BackgroundColor3 = Color3.fromRGB(150, 150, 150)
+    end
+    
+    -- Update wave counter immediately
+    local waveCounter = playerGui:FindFirstChild("ZombieSystemGui"):FindFirstChild("WaveCounter")
+    if waveCounter then
+        waveCounter.Text = "Wave: " .. currentWave
+    end
+    
+    -- Spawn zombies with delay
+    task.spawn(function()
+        for i = 1, zombiesToSpawn do
+            if isPlayerDead then break end -- Stop spawning if player died
+            
+            spawnZombie()
+            print("Spawned zombie " .. i .. "/" .. zombiesToSpawn)
+            
+            if i < zombiesToSpawn then
+                task.wait(0.5) -- Delay between spawns
+            end
+        end
+        
+        -- Mark spawn as completed AFTER all zombies are spawned
+        waveSpawnCompleted = true
+        
+        -- Update button text after spawning completed
+        if spawnWaveButton then
+            spawnWaveButton.Text = "Wave " .. currentWave .. " Active"
+            spawnWaveButton.BackgroundColor3 = Color3.fromRGB(200, 100, 100)
+        end
+        
+        print("Wave " .. currentWave .. " spawn completed! Total zombies: " .. #zombies)
+    end)
+end
+
+-- Fungsi untuk check wave completion dan auto start next wave
+local function checkWaveCompletion()
+    -- IMPORTANT: Only check completion if wave spawn is completed
+    if not waveInProgress or isPlayerDead or not waveSpawnCompleted then 
+        return 
+    end
+    
+    -- Clean up dead zombies first
+    for i = #zombies, 1, -1 do
+        local zombie = zombies[i]
+        if not zombie or not zombie.Parent or not zombie:GetAttribute("IsAlive") then
+            table.remove(zombies, i)
+        end
+    end
+    
+    local aliveZombies = #zombies
+    
+    -- Only check completion if spawn is truly completed and no zombies left
+    if aliveZombies == 0 and waveInProgress and waveSpawnCompleted then
+        waveInProgress = false
+        waveSpawnCompleted = false  -- Reset for next wave
+        
+        print("Wave " .. currentWave .. " completed! Next wave in 3 seconds...")
+        
+        -- Update button text
+        if spawnWaveButton then
+            spawnWaveButton.Text = "Next Wave in 3s"
+            spawnWaveButton.BackgroundColor3 = Color3.fromRGB(200, 200, 100)
+        end
+        
+        -- Auto start next wave
+        task.spawn(function()
+            for countdown = 3, 1, -1 do
+                if isPlayerDead then return end -- Stop countdown if player died
+                
+                if spawnWaveButton then
+                    spawnWaveButton.Text = "Next Wave in " .. countdown .. "s"
+                end
+                task.wait(1)
+            end
+            
+            if not isPlayerDead and waveStarted then
+                print("Auto-starting next wave...")
+                spawnWave()
+            end
+        end)
+    end
+end
+
+-- Fungsi untuk show death screen
+function showDeathScreen()
+    -- Prevent multiple death screens
+    local existingDeathScreen = playerGui:FindFirstChild("DeathScreen")
+    if existingDeathScreen then
+        return -- Don't create another one
+    end
+    
+    local deathGui = Instance.new("ScreenGui")
+    deathGui.Name = "DeathScreen"
+    deathGui.Parent = playerGui
+    
+    local deathFrame = Instance.new("Frame")
+    deathFrame.Size = UDim2.new(1, 0, 1, 0)
+    deathFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    deathFrame.BackgroundTransparency = 0.5
+    deathFrame.Parent = deathGui
+    
+    local deathText = Instance.new("TextLabel")
+    deathText.Size = UDim2.new(0.6, 0, 0.15, 0)
+    deathText.Position = UDim2.new(0.2, 0, 0.25, 0)
+    deathText.BackgroundTransparency = 1
+    deathText.Text = "YOU DIED"
+    deathText.TextColor3 = Color3.fromRGB(255, 0, 0)
+    deathText.TextScaled = true
+    deathText.Font = Enum.Font.GothamBold
+    deathText.Parent = deathFrame
+    
+    local waveText = Instance.new("TextLabel")
+    waveText.Size = UDim2.new(0.6, 0, 0.1, 0)
+    waveText.Position = UDim2.new(0.2, 0, 0.42, 0)
+    waveText.BackgroundTransparency = 1
+    waveText.Text = "You survived " .. currentWave .. " waves"
+    waveText.TextColor3 = Color3.fromRGB(255, 255, 255)
+    waveText.TextScaled = true
+    waveText.Font = Enum.Font.Gotham
+    waveText.Parent = deathFrame
+    
+    -- Restart Wave Button
+    local restartButton = Instance.new("TextButton")
+    restartButton.Size = UDim2.new(0.25, 0, 0.08, 0)
+    restartButton.Position = UDim2.new(0.25, 0, 0.6, 0)
+    restartButton.BackgroundColor3 = Color3.fromRGB(100, 200, 100)
+    restartButton.BorderSizePixel = 0
+    restartButton.Text = "Restart Wave"
+    restartButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    restartButton.TextScaled = true
+    restartButton.Font = Enum.Font.GothamBold
+    restartButton.Parent = deathFrame
+    
+    local restartCorner = Instance.new("UICorner")
+    restartCorner.CornerRadius = UDim.new(0, 8)
+    restartCorner.Parent = restartButton
+    
+    -- Exit & Close Button
+    local exitButton = Instance.new("TextButton")
+    exitButton.Size = UDim2.new(0.25, 0, 0.08, 0)
+    exitButton.Position = UDim2.new(0.5, 0, 0.6, 0)
+    exitButton.BackgroundColor3 = Color3.fromRGB(200, 100, 100)
+    exitButton.BorderSizePixel = 0
+    exitButton.Text = "Exit & Close"
+    exitButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    exitButton.TextScaled = true
+    exitButton.Font = Enum.Font.GothamBold
+    exitButton.Parent = deathFrame
+    
+    local exitCorner = Instance.new("UICorner")
+    exitCorner.CornerRadius = UDim.new(0, 8)
+    exitCorner.Parent = exitButton
+    
+    -- Button connections
+    restartButton.MouseButton1Click:Connect(function()
+        -- Reset game state COMPLETELY
+        isPlayerDead = false
+        playerHealth = maxPlayerHealth
+        currentWave = 0  -- RESET to 0, not keep current wave
+        waveInProgress = false
+        waveStarted = false
+        waveSpawnCompleted = false  -- NEW: Reset spawn completion
+        
+        -- Clear zombies
+        for _, zombie in ipairs(zombies) do
+            if zombie and zombie.Parent then
+                zombie:Destroy()
+            end
+        end
+        zombies = {}
+        
+        -- Remove death screen
+        deathGui:Destroy()
+        
+        -- Reset UI
+        updateHealthBar()
+        if spawnWaveButton then
+            spawnWaveButton.Text = "Start Wave"
+            spawnWaveButton.BackgroundColor3 = Color3.fromRGB(100, 200, 100)
+        end
+        
+        -- Reset wave counter
+        local waveCounter = playerGui:FindFirstChild("ZombieSystemGui"):FindFirstChild("WaveCounter")
+        if waveCounter then
+            waveCounter.Text = "Wave: 0"
+        end
+        
+        print("Game restarted! Ready to start from Wave 1!")
+    end)
+    
+    exitButton.MouseButton1Click:Connect(function()
+        -- Clear all zombies
+        for _, zombie in ipairs(zombies) do
+            if zombie and zombie.Parent then
+                zombie:Destroy()
+            end
+        end
+        zombies = {}
+        
+        -- Remove all UI
+        local zombieGui = playerGui:FindFirstChild("ZombieSystemGui")
+        if zombieGui then
+            zombieGui:Destroy()
+        end
+        deathGui:Destroy()
+        
+        print("Zombie system closed.")
+    end)
+    
+    -- Stop all zombies
+    for _, zombie in ipairs(zombies) do
+        if zombie and zombie:FindFirstChild("Humanoid") then
+            zombie.Humanoid:MoveTo(zombie.HumanoidRootPart.Position)
+            zombie.Humanoid.WalkSpeed = 0
+        end
+    end
+    
+    print("Game Over! You survived " .. currentWave .. " waves.")
+end
+
+-- Main loop
+local function mainLoop()
+    RunService.Heartbeat:Connect(function()
+        if isPlayerDead then return end
+        
+        -- Update all zombie AI
+        for i = #zombies, 1, -1 do
+            local zombie = zombies[i]
+            if zombie and zombie.Parent then
+                updateZombieAI(zombie)
+                updateZombieHealthBar(zombie)
+            else
+                table.remove(zombies, i)
+            end
+        end
+        
+        -- Check wave completion for auto progression
+        if waveStarted and waveInProgress then
+    checkWaveCompletion()
+end
+    end)
+end
+
+-- Setup function
+local function setup()
+    local waveButton, healthBarUI, healthText, waveCounter = createUI()
+    spawnWaveButton = waveButton
+    healthBar = healthBarUI
+    
+    -- Connect wave button
+    local buttonCooldown = false
+spawnWaveButton.MouseButton1Click:Connect(function()
+    if not waveInProgress and not isPlayerDead and not buttonCooldown then
+        buttonCooldown = true
+        spawnWave()
+        
+        -- Prevent button spam
+        task.spawn(function()
+            task.wait(1)
+            buttonCooldown = false
+        end)
+    end
+end)
+    
+    -- Update initial health bar
+    updateHealthBar()
+    
+    -- Start main loop
+    mainLoop()
+    
+    print("Zombie Enemy System berhasil diinisialisasi!")
+end
+
+-- Character spawn handler
+local function onCharacterAdded(newCharacter)
+    -- Reset game state
+    isPlayerDead = false
+    playerHealth = maxPlayerHealth
+    currentWave = 0
+    waveInProgress = false
+    waveStarted = false
+    
+    -- Clear existing zombies
+    for _, zombie in ipairs(zombies) do
+        if zombie and zombie.Parent then
+            zombie:Destroy()
+        end
+    end
+    zombies = {}
+    
+    -- Remove death screen if exists
+    local deathScreen = playerGui:FindFirstChild("DeathScreen")
+    if deathScreen then
+        deathScreen:Destroy()
+    end
+    
+    -- Wait for character to fully load
+    newCharacter:WaitForChild("Humanoid")
+    newCharacter:WaitForChild("HumanoidRootPart")
+    
+    -- Setup system
+    setup()
+end
+
+-- Connect to character respawn
+player.CharacterAdded:Connect(onCharacterAdded)
+
+-- If character already exists
+if player.Character and player.Character.Parent then
+    onCharacterAdded(player.Character)
+end
+
+loadstring(game:HttpGet("https://raw.githubusercontent.com/grp5ss/Syo/refs/heads/main/MINIGAMES%20(%20LAUNCHER%20)"))()
