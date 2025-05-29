@@ -373,7 +373,7 @@ function ModernGUILibrary.createLabel(labelName, text, positionY, parent, option
     local options = options or {}
     local textSize = options.textSize or 14
     local textColor = options.textColor or Color3.fromRGB(255, 255, 255)
-    local font = options.font or Enum.Font.Gotham
+    local font = options.font or Enum.Font.GothamBold
     local textAlignment = options.textAlignment or Enum.TextXAlignment.Left
     local zIndex = options.zIndex or 1
     local hasBackground = options.hasBackground or false
