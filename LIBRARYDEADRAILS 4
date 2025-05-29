@@ -336,9 +336,81 @@ function ModernGUILibrary.MakeTab(config)
             end
             return button, btn
         end,
+        AddLabel = function(name, text, position, options)
+            local pos = position or UDim2.new(0.05, 0, 0, tabPositionY[tabName])
+            local labelContainer, textLabel = ModernGUILibrary.createLabel(name, text, tabPositionY[tabName], tabContent, options)
+            tabPositionY[tabName] = tabPositionY[tabName] + 35
+            tabContentHeights[tabName] = tabPositionY[tabName]
+            if activeTab == tabName then
+                ScrollingFrame.CanvasSize = UDim2.new(0, 0, 0, tabContentHeights[tabName])
+            end
+            
+            -- Return methods untuk kontrol label
+            local labelMethods = {
+                setText = function(newText)
+                    textLabel.Text = newText
+                end,
+                getText = function()
+                    return textLabel.Text
+                end,
+                setTextColor = function(color)
+                    textLabel.TextColor3 = color
+                end,
+                setBackgroundVisible = function(visible)
+                    labelContainer.BackgroundTransparency = visible and (options and options.backgroundTransparency or 0.7) or 1
+                end
+            }
+            
+            return labelContainer, labelMethods
+        end,
     }
 
     return tab
+end
+
+-- Function createLabel yang sudah ada
+function ModernGUILibrary.createLabel(labelName, text, positionY, parent, options)
+    local options = options or {}
+    local textSize = options.textSize or 14
+    local textColor = options.textColor or Color3.fromRGB(255, 255, 255)
+    local font = options.font or Enum.Font.Gotham
+    local textAlignment = options.textAlignment or Enum.TextXAlignment.Left
+    local zIndex = options.zIndex or 1
+    local hasBackground = options.hasBackground or false
+    local backgroundColor = options.backgroundColor or Color3.fromRGB(30, 30, 30)
+    local backgroundTransparency = options.backgroundTransparency or 0.7
+
+    local labelContainer = Instance.new("Frame")
+    labelContainer.Name = labelName .. "LabelContainer"
+    labelContainer.Size = UDim2.new(0.9, 0, 0, 30)
+    labelContainer.Position = UDim2.new(0.05, 0, 0, positionY)
+    labelContainer.BackgroundTransparency = hasBackground and backgroundTransparency or 1
+    labelContainer.BackgroundColor3 = backgroundColor
+    labelContainer.BorderSizePixel = 0
+    labelContainer.ZIndex = zIndex
+    labelContainer.Parent = parent
+
+    if hasBackground then
+        local corner = Instance.new("UICorner")
+        corner.CornerRadius = UDim.new(0, 5)
+        corner.Parent = labelContainer
+    end
+
+    local textLabel = Instance.new("TextLabel")
+    textLabel.Name = labelName .. "Label"
+    textLabel.Size = UDim2.new(1, -10, 1, 0)
+    textLabel.Position = UDim2.new(0, 5, 0, 0)
+    textLabel.BackgroundTransparency = 1
+    textLabel.TextColor3 = textColor
+    textLabel.TextSize = textSize
+    textLabel.Font = font
+    textLabel.Text = text
+    textLabel.ZIndex = zIndex + 1
+    textLabel.TextXAlignment = textAlignment
+    textLabel.TextWrapped = true
+    textLabel.Parent = labelContainer
+
+    return labelContainer, textLabel
 end
 
 function ModernGUILibrary.createSection(sectionName, position, parent)
@@ -890,133 +962,6 @@ function ModernGUILibrary.createButton(name, text, position, parent, onClick, ic
     end)
     
     return buttonContainer, button
-end
-
-function ModernGUILibrary.createLabel(labelName, text, positionY, parent, options)
-    local options = options or {}
-    local textSize = options.textSize or 14
-    local textColor = options.textColor or Color3.fromRGB(255, 255, 255)
-    local font = options.font or Enum.Font.Gotham
-    local textAlignment = options.textAlignment or Enum.TextXAlignment.Left
-    local zIndex = options.zIndex or 1
-    local hasBackground = options.hasBackground or false
-    local backgroundColor = options.backgroundColor or Color3.fromRGB(30, 30, 30)
-    local backgroundTransparency = options.backgroundTransparency or 0.7
-
-    local labelContainer = Instance.new("Frame")
-    labelContainer.Name = labelName .. "LabelContainer"
-    labelContainer.Size = UDim2.new(0.9, 0, 0, 30)
-    labelContainer.Position = UDim2.new(0.05, 0, 0, positionY)
-    labelContainer.BackgroundTransparency = hasBackground and backgroundTransparency or 1
-    labelContainer.BackgroundColor3 = backgroundColor
-    labelContainer.BorderSizePixel = 0
-    labelContainer.ZIndex = zIndex
-    labelContainer.Parent = parent
-
-    if hasBackground then
-        local corner = Instance.new("UICorner")
-        corner.CornerRadius = UDim.new(0, 5)
-        corner.Parent = labelContainer
-    end
-
-    local textLabel = Instance.new("TextLabel")
-    textLabel.Name = labelName .. "Label"
-    textLabel.Size = UDim2.new(1, -10, 1, 0)
-    textLabel.Position = UDim2.new(0, 5, 0, 0)
-    textLabel.BackgroundTransparency = 1
-    textLabel.TextColor3 = textColor
-    textLabel.TextSize = textSize
-    textLabel.Font = font
-    textLabel.Text = text
-    textLabel.ZIndex = zIndex + 1
-    textLabel.TextXAlignment = textAlignment
-    textLabel.TextWrapped = true
-    textLabel.Parent = labelContainer
-
-    return labelContainer, textLabel
-end
-
--- Tambahkan method AddLabel2 ke dalam tab object
-function ModernGUILibrary.createLabel2(labelName, text, position, parent, options)
-    local options = options or {}
-    local textSize = options.textSize or 18
-    local textColor = options.textColor or Color3.fromRGB(255, 255, 255)
-    local font = options.font or Enum.Font.GothamBold
-    local textAlignment = options.textAlignment or Enum.TextXAlignment.Left
-    local zIndex = options.zIndex or 1
-    local hasBackground = options.hasBackground or false
-    local backgroundColor = options.backgroundColor or Color3.fromRGB(144, 238, 144)
-    local backgroundTransparency = options.backgroundTransparency or 0.7
-
-    local labelFrame = Instance.new("Frame")
-    labelFrame.Name = labelName .. "Label2Container"
-    labelFrame.Size = UDim2.new(0.9, 0, 0, 30)
-    labelFrame.Position = position
-    labelFrame.BackgroundTransparency = hasBackground and backgroundTransparency or 1
-    labelFrame.BackgroundColor3 = backgroundColor
-    labelFrame.BorderSizePixel = 0
-    labelFrame.ZIndex = zIndex
-    labelFrame.Parent = parent
-
-    if hasBackground then
-        local uiCorner = Instance.new("UICorner")
-        uiCorner.CornerRadius = UDim.new(0, 5)
-        uiCorner.Parent = labelFrame
-    end
-
-    local labelText = Instance.new("TextLabel")
-    labelText.Name = labelName .. "Label2"
-    labelText.Size = UDim2.new(1, -10, 1, 0)
-    labelText.Position = UDim2.new(0, 5, 0, 0)
-    labelText.BackgroundTransparency = 1
-    labelText.TextColor3 = textColor
-    labelText.TextSize = textSize
-    labelText.Font = font
-    labelText.Text = text
-    labelText.ZIndex = zIndex + 1
-    labelText.TextXAlignment = textAlignment
-    labelText.TextWrapped = true
-    labelText.Parent = labelFrame
-
-    return labelFrame, labelText
-end
-
--- Method untuk tab object agar bisa dipanggil seperti tab.AddLabel2()
--- Ini harus ditambahkan ke dalam sistem tab library
-function AddLabel2ToTab(tabObject)
-    tabObject.AddLabel2 = function(labelName, text, position, options)
-        -- Menggunakan autopositioning jika position nil
-        if position == nil then
-            position = UDim2.new(0.05, 0, 0, tabObject.nextY or 0)
-            tabObject.nextY = (tabObject.nextY or 0) + 35 -- spacing antar element
-        end
-        
-        local labelFrame, labelText = ModernGUILibrary.createLabel2(
-            labelName, 
-            text, 
-            position, 
-            tabObject.tabFrame, -- parent adalah frame tab
-            options
-        )
-        
-        -- Return methods untuk kontrol label
-        local labelMethods = {
-            setText = function(newText)
-                labelText.Text = newText
-            end,
-            getText = function()
-                return labelText.Text
-            end,
-            setTextColor = function(color)
-                labelText.TextColor3 = color
-            end,
-            setBackgroundVisible = function(visible)
-                labelFrame.BackgroundTransparency = visible and (options and options.backgroundTransparency or 0.7) or 1
-            end
-        }
-        
-        return labelFrame, labelMethods
-    end
 end
 
 function ModernGUILibrary.createNotification(message, type)
