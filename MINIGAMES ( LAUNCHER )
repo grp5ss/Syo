@@ -1,0 +1,348 @@
+-- LocalScript yang diletakkan di StarterPlayerScripts atau StarterGui
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local Debris = game:GetService("Debris")
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+-- Variables
+local pistolTool = nil
+local shootButton = nil
+local isEquipped = false
+local bullets = {}
+
+-- Konfigurasi peluru
+local BULLET_SPEED = 150 -- Kecepatan awal peluru
+local BULLET_DROP = 50 -- Kekuatan gravitasi peluru
+local BULLET_LIFETIME = 10 -- Berapa lama peluru hidup (detik)
+local BULLET_DAMAGE = 30 -- Damage peluru
+
+-- Fungsi untuk membuat pistol tool
+local function createPistol()
+    local tool = Instance.new("Tool")
+    tool.Name = "Pistol"
+    tool.RequiresHandle = true
+    
+    -- Handle pistol (model pistol)
+    local handle = Instance.new("Part")
+    handle.Name = "Handle"
+    handle.Size = Vector3.new(0.5, 1.2, 2.5)
+    handle.Color = Color3.fromRGB(50, 50, 50)
+    handle.Material = Enum.Material.Metal
+    handle.CanCollide = false
+    handle.Parent = tool
+    
+    -- Menambahkan detail pistol
+    local barrel = Instance.new("Part")
+    barrel.Name = "Barrel"
+    barrel.Size = Vector3.new(0.3, 0.3, 1.5)
+    barrel.Color = Color3.fromRGB(30, 30, 30)
+    barrel.Material = Enum.Material.Metal
+    barrel.CanCollide = false
+    barrel.Parent = handle
+    
+    local barrelWeld = Instance.new("WeldConstraint")
+    barrelWeld.Part0 = handle
+    barrelWeld.Part1 = barrel
+    barrelWeld.Parent = handle
+    
+    -- Posisi barrel relatif ke handle
+    barrel.CFrame = handle.CFrame * CFrame.new(0, 0.3, -0.8)
+    
+    -- Attachment untuk titik tembak
+    local shootPoint = Instance.new("Attachment")
+    shootPoint.Name = "ShootPoint"
+    shootPoint.Position = Vector3.new(0, 0, -0.75)
+    shootPoint.Parent = barrel
+    
+    return tool
+end
+
+-- Fungsi untuk membuat UI Shoot Button
+local function createShootButton()
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "PistolGui"
+    screenGui.Parent = playerGui
+    
+    local button = Instance.new("TextButton")
+    button.Name = "ShootButton"
+    button.Size = UDim2.new(0, 80, 0, 80)
+    button.Position = UDim2.new(1, -100, 1, -180) -- Di atas jump button
+    button.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+    button.BorderSizePixel = 0
+    button.Text = "SHOOT"
+    button.TextColor3 = Color3.fromRGB(255, 255, 255)
+    button.TextScaled = true
+    button.Font = Enum.Font.GothamBold
+    button.Parent = screenGui
+    
+    -- Styling button
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 10)
+    corner.Parent = button
+    
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = Color3.fromRGB(150, 30, 30)
+    stroke.Thickness = 2
+    stroke.Parent = button
+    
+    button.Visible = false
+    return button
+end
+
+-- Fungsi untuk membuat peluru
+local function createBullet(startPosition, direction)
+    local bullet = Instance.new("Part")
+    bullet.Name = "Bullet"
+    bullet.Size = Vector3.new(0.2, 0.2, 0.8)
+    bullet.Color = Color3.fromRGB(255, 255, 0)
+    bullet.Material = Enum.Material.Neon
+    bullet.CanCollide = false
+    bullet.Shape = Enum.PartType.Cylinder
+    bullet.TopSurface = Enum.SurfaceType.Smooth
+    bullet.BottomSurface = Enum.SurfaceType.Smooth
+    bullet.Parent = workspace
+    
+    bullet.CFrame = CFrame.lookAt(startPosition, startPosition + direction)
+    
+    -- Trail effect
+    local attachment1 = Instance.new("Attachment")
+    attachment1.Position = Vector3.new(0, 0, 0.4)
+    attachment1.Parent = bullet
+    
+    local attachment2 = Instance.new("Attachment")
+    attachment2.Position = Vector3.new(0, 0, -0.4)
+    attachment2.Parent = bullet
+    
+    local trail = Instance.new("Trail")
+    trail.Attachment0 = attachment1
+    trail.Attachment1 = attachment2
+    trail.Lifetime = 0.5
+    trail.MinLength = 0
+    trail.Color = ColorSequence.new(Color3.fromRGB(255, 255, 0), Color3.fromRGB(255, 100, 0))
+    trail.Transparency = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, 0),
+        NumberSequenceKeypoint.new(1, 1)
+    })
+    trail.Parent = bullet
+    
+    return bullet
+end
+
+-- Fungsi untuk simulasi fisika peluru
+local function simulateBullet(bullet, initialVelocity)
+    local startTime = tick()
+    local startPosition = bullet.Position
+    local velocity = initialVelocity
+    local lastPosition = startPosition
+    
+    local connection
+    connection = RunService.Heartbeat:Connect(function()
+        local currentTime = tick()
+        local deltaTime = currentTime - startTime
+        
+        -- Hitung posisi baru dengan gravitasi
+        local newPosition = startPosition + velocity * deltaTime + Vector3.new(0, -BULLET_DROP * deltaTime * deltaTime * 0.5, 0)
+        
+        -- Raycast untuk deteksi collision
+        local rayDirection = newPosition - lastPosition
+        local raycastParams = RaycastParams.new()
+        raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+        raycastParams.FilterDescendantsInstances = {player.Character, bullet}
+        
+        local raycastResult = workspace:Raycast(lastPosition, rayDirection, raycastParams)
+        
+        if raycastResult then
+            -- Hit something!
+            bullet.Position = raycastResult.Position
+            
+            -- Buat efek impact
+            local impact = Instance.new("Explosion")
+            impact.Position = raycastResult.Position
+            impact.BlastRadius = 5
+            impact.BlastPressure = 0
+            impact.Parent = workspace
+            
+            -- Cek jika hit humanoid
+            local hitHumanoid = raycastResult.Instance.Parent:FindFirstChild("Humanoid")
+            if hitHumanoid and hitHumanoid ~= player.Character.Humanoid then
+                hitHumanoid:TakeDamage(BULLET_DAMAGE)
+                
+                -- Buat damage indicator
+                local damageGui = Instance.new("BillboardGui")
+                damageGui.Size = UDim2.new(2, 0, 1, 0)
+                damageGui.StudsOffset = Vector3.new(0, 3, 0)
+                damageGui.Parent = raycastResult.Instance
+                
+                local damageLabel = Instance.new("TextLabel")
+                damageLabel.Size = UDim2.new(1, 0, 1, 0)
+                damageLabel.BackgroundTransparency = 1
+                damageLabel.Text = "-" .. BULLET_DAMAGE
+                damageLabel.TextColor3 = Color3.fromRGB(255, 0, 0)
+                damageLabel.TextScaled = true
+                damageLabel.Font = Enum.Font.GothamBold
+                damageLabel.Parent = damageGui
+                
+                -- Animate damage text
+                local tween = TweenService:Create(damageGui, 
+                    TweenInfo.new(1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+                    {StudsOffset = Vector3.new(0, 6, 0)}
+                )
+                tween:Play()
+                
+                local fadeTween = TweenService:Create(damageLabel,
+                    TweenInfo.new(1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+                    {TextTransparency = 1}
+                )
+                fadeTween:Play()
+                
+                Debris:AddItem(damageGui, 1)
+            end
+            
+            connection:Disconnect()
+            Debris:AddItem(bullet, 0.1)
+            return
+        end
+        
+        -- Update posisi peluru
+        bullet.Position = newPosition
+        bullet.CFrame = CFrame.lookAt(newPosition, newPosition + velocity.Unit)
+        lastPosition = newPosition
+        
+        -- Hapus peluru setelah lifetime habis
+        if deltaTime > BULLET_LIFETIME then
+            connection:Disconnect()
+            Debris:AddItem(bullet, 0)  
+        end
+    end)
+end
+
+-- Fungsi untuk menembak
+local function shoot()
+    if not isEquipped or not pistolTool then return end
+    
+    local handle = pistolTool:FindFirstChild("Handle")
+    if not handle then return end
+    
+    local barrel = handle:FindFirstChild("Barrel")
+    if not barrel then return end
+    
+    -- Hitung posisi dan arah tembakan
+    local camera = workspace.CurrentCamera
+    local startPosition = barrel.Position + barrel.CFrame.LookVector * 0.75
+    
+    -- Arah tembakan berdasarkan arah kamera
+    local targetPosition = camera.CFrame.Position + camera.CFrame.LookVector * 1000
+    local direction = (targetPosition - startPosition).Unit
+    
+    -- Buat peluru
+    local bullet = createBullet(startPosition, direction)
+    local velocity = direction * BULLET_SPEED
+    
+    -- Mulai simulasi peluru
+    simulateBullet(bullet, velocity)
+    
+    -- Efek suara tembakan (opsional)
+    local shootSound = Instance.new("Sound")
+    shootSound.SoundId = "rbxasset://sounds/electronicpingshort.wav"
+    shootSound.Volume = 0.5
+    shootSound.Parent = handle
+    shootSound:Play()
+    
+    -- Hapus sound setelah selesai
+    shootSound.Ended:Connect(function()
+        shootSound:Destroy()
+    end)
+    
+    -- Efek muzzle flash
+    local muzzleFlash = Instance.new("Part")
+    muzzleFlash.Name = "MuzzleFlash"
+    muzzleFlash.Size = Vector3.new(0.5, 0.5, 0.1)
+    muzzleFlash.Color = Color3.fromRGB(255, 255, 0)
+    muzzleFlash.Material = Enum.Material.Neon
+    muzzleFlash.CanCollide = false
+    muzzleFlash.Anchored = true
+    muzzleFlash.Parent = workspace
+    muzzleFlash.CFrame = barrel.CFrame * CFrame.new(0, 0, -0.75)
+    
+    Debris:AddItem(muzzleFlash, 0.1)
+    
+    -- Cooldown (untuk mencegah spam)
+    if shootButton then
+        shootButton.Enabled = false
+        task.wait(0.2)
+        shootButton.Enabled = true
+    end
+end
+
+-- Event handlers
+local function onToolEquipped()
+    isEquipped = true
+    if shootButton then
+        shootButton.Visible = true
+    end
+end
+
+local function onToolUnequipped()
+    isEquipped = false
+    if shootButton then
+        shootButton.Visible = false
+    end
+end
+
+-- Setup function
+local function setup()
+    -- Pastikan player memiliki backpack
+    if not player.Backpack then
+        player.ChildAdded:Wait() -- Tunggu sampai backpack tersedia
+    end
+    
+    -- Buat pistol
+    pistolTool = createPistol()
+    pistolTool.Parent = player.Backpack
+    
+    -- Buat shoot button
+    shootButton = createShootButton()
+    
+    -- Connect events
+    pistolTool.Equipped:Connect(onToolEquipped)
+    pistolTool.Unequipped:Connect(onToolUnequipped)
+    shootButton.MouseButton1Click:Connect(shoot)
+    
+    -- Input alternatif (klik kiri mouse)
+    UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        
+        if input.UserInputType == Enum.UserInputType.MouseButton1 and isEquipped then
+            shoot()
+        end
+    end)
+    
+    print("Pistol tool berhasil dibuat dan ditambahkan ke backpack!")
+end
+
+-- Fungsi ketika character spawn
+local function onCharacterAdded(newCharacter)
+    -- Tunggu sampai character fully loaded
+    newCharacter:WaitForChild("Humanoid")
+    newCharacter:WaitForChild("HumanoidRootPart")
+    
+    -- Setup tool
+    setup()
+end
+
+-- Connect ke character respawn
+player.CharacterAdded:Connect(onCharacterAdded)
+
+-- Jika character sudah ada saat script dijalankan
+if player.Character and player.Character.Parent then
+    onCharacterAdded(player.Character)
+else
+    -- Tunggu character spawn pertama kali
+    local character = player.CharacterAdded:Wait()
+    onCharacterAdded(character)
+end
