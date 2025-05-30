@@ -1,4 +1,4 @@
--- Pet Seller GUI Script
+-- Pet Seller GUI Script (1.4x Smaller)
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
@@ -22,10 +22,10 @@ local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "PetSellerGUI"
 screenGui.Parent = PlayerGui
 
--- Main Frame
+-- Main Frame (280 -> 200, 160 -> 114)
 local mainFrame = Instance.new("Frame")
 mainFrame.Name = "MainFrame"
-mainFrame.Size = UDim2.new(0, 280, 0, 120)
+mainFrame.Size = UDim2.new(0, 200, 0, 86)
 mainFrame.Position = UDim2.new(0, 50, 0, 50)
 mainFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
 mainFrame.BorderSizePixel = 0
@@ -33,22 +33,22 @@ mainFrame.Active = true
 mainFrame.Draggable = false -- We'll handle dragging manually for better mobile support
 mainFrame.Parent = screenGui
 
--- Add corner radius
+-- Add corner radius (10 -> 7)
 local corner = Instance.new("UICorner")
-corner.CornerRadius = UDim.new(0, 10)
+corner.CornerRadius = UDim.new(0, 7)
 corner.Parent = mainFrame
 
--- Add stroke
+-- Add stroke (2 -> 1.4)
 local stroke = Instance.new("UIStroke")
 stroke.Color = Color3.fromRGB(85, 85, 85)
-stroke.Thickness = 2
+stroke.Thickness = 1.4
 stroke.Parent = mainFrame
 
--- Title Label
+-- Title Label (30 -> 21)
 local titleLabel = Instance.new("TextLabel")
 titleLabel.Name = "TitleLabel"
-titleLabel.Size = UDim2.new(1, 0, 0, 30)
-titleLabel.Position = UDim2.new(0, 0, 0, 0)
+titleLabel.Size = UDim2.new(1, 0, 0, 21)
+titleLabel.Position = UDim2.new(0, 0, 0, 4)
 titleLabel.BackgroundTransparency = 1
 titleLabel.Text = "INF MONEY GLITCH"
 titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -56,23 +56,11 @@ titleLabel.TextScaled = true
 titleLabel.Font = Enum.Font.GothamBold
 titleLabel.Parent = mainFrame
 
--- Status Label
-local statusLabel = Instance.new("TextLabel")
-statusLabel.Name = "StatusLabel"
-statusLabel.Size = UDim2.new(1, -20, 0, 25)
-statusLabel.Position = UDim2.new(0, 10, 0, 35)
-statusLabel.BackgroundTransparency = 1
-statusLabel.Text = "Status: Disabled"
-statusLabel.TextColor3 = Color3.fromRGB(255, 85, 85)
-statusLabel.TextScaled = true
-statusLabel.Font = Enum.Font.Gotham
-statusLabel.Parent = mainFrame
-
--- Toggle Button
+-- Toggle Button (120 -> 86, 35 -> 25, Y: 70 -> 50)
 local toggleButton = Instance.new("TextButton")
 toggleButton.Name = "ToggleButton"
-toggleButton.Size = UDim2.new(0, 120, 0, 35)
-toggleButton.Position = UDim2.new(0.5, -60, 0, 70)
+toggleButton.Size = UDim2.new(0, 86, 0, 25)
+toggleButton.Position = UDim2.new(0.5, -43, 0, 50)
 toggleButton.BackgroundColor3 = Color3.fromRGB(255, 85, 85)
 toggleButton.BorderSizePixel = 0
 toggleButton.Text = "START"
@@ -81,16 +69,16 @@ toggleButton.TextScaled = true
 toggleButton.Font = Enum.Font.GothamBold
 toggleButton.Parent = mainFrame
 
--- Button corner radius
+-- Button corner radius (8 -> 6)
 local buttonCorner = Instance.new("UICorner")
-buttonCorner.CornerRadius = UDim.new(0, 8)
+buttonCorner.CornerRadius = UDim.new(0, 6)
 buttonCorner.Parent = toggleButton
 
--- Target Info Label
+-- Target Info Label (20 -> 14, Y: 110 -> 79)
 local targetLabel = Instance.new("TextLabel")
 targetLabel.Name = "TargetLabel"
-targetLabel.Size = UDim2.new(1, -20, 0, 20)
-targetLabel.Position = UDim2.new(0, 10, 0, 110)
+targetLabel.Size = UDim2.new(1, -14, 0, 14)
+targetLabel.Position = UDim2.new(0, 7, 0, 79)  
 targetLabel.BackgroundTransparency = 1
 targetLabel.Text = "Target: None"
 targetLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
@@ -98,8 +86,20 @@ targetLabel.TextScaled = true
 targetLabel.Font = Enum.Font.Gotham
 targetLabel.Parent = mainFrame
 
--- Resize main frame to accommodate target label
-mainFrame.Size = UDim2.new(0, 200, 0, 140)
+-- Credit Label (18 -> 13, Y: 135 -> 96)
+local creditLabel = Instance.new("TextLabel")
+creditLabel.Name = "CreditLabel"
+creditLabel.Size = UDim2.new(1, -14, 0, 13)
+creditLabel.Position = UDim2.new(0, 7, 0, 96)
+creditLabel.BackgroundTransparency = 1
+creditLabel.Text = "Made by Zysume Hub"
+creditLabel.TextColor3 = Color3.fromRGB(85, 255, 85)
+creditLabel.TextScaled = true
+creditLabel.Font = Enum.Font.GothamBold
+creditLabel.Parent = mainFrame
+
+-- Resize main frame to accommodate all labels (160 -> 114)
+mainFrame.Size = UDim2.new(0, 200, 0, 114)
 
 -- Function to find player with equipped pet
 local function findTargetPlayer()
@@ -149,8 +149,6 @@ local function toggleScript()
         -- Start the script
         toggleButton.Text = "STOP"
         toggleButton.BackgroundColor3 = Color3.fromRGB(85, 255, 85)
-        statusLabel.Text = "Status: Enabled"
-        statusLabel.TextColor3 = Color3.fromRGB(85, 255, 85)
         
         -- Start the loop
         connection = RunService.Heartbeat:Connect(function()
@@ -158,22 +156,20 @@ local function toggleScript()
             wait(0.1) -- Small delay to prevent overwhelming
         end)
         
-        -- Button animation
+        -- Button animation (125 -> 89, 37 -> 26)
         local tween = TweenService:Create(toggleButton, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {
-            Size = UDim2.new(0, 125, 0, 37)
+            Size = UDim2.new(0, 89, 0, 26)
         })
         tween:Play()
         tween.Completed:Connect(function()
             TweenService:Create(toggleButton, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {
-                Size = UDim2.new(0, 120, 0, 35)
+                Size = UDim2.new(0, 86, 0, 25)
             }):Play()
         end)
     else
         -- Stop the script
         toggleButton.Text = "START"
         toggleButton.BackgroundColor3 = Color3.fromRGB(255, 85, 85)
-        statusLabel.Text = "Status: Disabled"
-        statusLabel.TextColor3 = Color3.fromRGB(255, 85, 85)
         targetLabel.Text = "Target: None"
         
         if connection then
@@ -181,14 +177,14 @@ local function toggleScript()
             connection = nil
         end
         
-        -- Button animation
+        -- Button animation (115 -> 82, 33 -> 24)
         local tween = TweenService:Create(toggleButton, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {
-            Size = UDim2.new(0, 115, 0, 33)
+            Size = UDim2.new(0, 82, 0, 24)
         })
         tween:Play()
         tween.Completed:Connect(function()
             TweenService:Create(toggleButton, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {
-                Size = UDim2.new(0, 120, 0, 35)
+                Size = UDim2.new(0, 86, 0, 25)
             }):Play()
         end)
     end
@@ -279,9 +275,9 @@ local function setupDragDetection()
             local mouseLocation = UserInputService:GetMouseLocation()
             local objectsAtPosition = PlayerGui:GetGuiObjectsAtPosition(mouseLocation.X, mouseLocation.Y)
             
-            -- Check if we clicked on the title area
+            -- Check if we clicked on the title area (35 -> 25)
             for _, obj in pairs(objectsAtPosition) do
-                if obj == titleLabel or (obj == mainFrame and mouseLocation.Y <= mainFrame.AbsolutePosition.Y + 35) then
+                if obj == titleLabel or (obj == mainFrame and mouseLocation.Y <= mainFrame.AbsolutePosition.Y + 25) then
                     -- Make sure we're not clicking the toggle button
                     local isToggleButton = false
                     for _, btnObj in pairs(objectsAtPosition) do
@@ -317,8 +313,3 @@ Players.PlayerRemoving:Connect(function(player)
         end
     end
 end)
-
-print("Pet Seller GUI Loaded Successfully!")
-print("- Drag the GUI by holding the title bar")
-print("- Click START/STOP to toggle the pet selling script")
-print("- The script will automatically find players with equipped pets and attempt to sell them")
