@@ -148,6 +148,10 @@ TabContainer.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 TabContainer.BorderSizePixel = 0
 TabContainer.Parent = MainFrame
 
+local TabContainerCorner = Instance.new("UICorner")
+TabContainerCorner.CornerRadius = UDim.new(0, 10)
+TabContainerCorner.Parent = TabContainer
+
 local TabListLayout = Instance.new("UIListLayout")
 TabListLayout.SortOrder = Enum.SortOrder.LayoutOrder
 TabListLayout.Padding = UDim.new(0, 5)
