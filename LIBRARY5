@@ -55,7 +55,7 @@ end
 -- Tambahkan UIScale untuk resize universal
 local GuiScale = Instance.new("UIScale")
 GuiScale.Name = "GuiScale"
-GuiScale.Scale = 0.9 -- 1 / 1.2 untuk 1.2x lebih kecil
+GuiScale.Scale = 0.8333 -- 1 / 1.2 untuk 1.2x lebih kecil
 GuiScale.Parent = ScreenGui
 
 -- Main Frame
