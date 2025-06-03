@@ -70,8 +70,16 @@ MainFrame.Parent = ScreenGui
 
 -- Round the corners
 local UICorner = Instance.new("UICorner")
-UICorner.CornerRadius = UDim.new(0, 10)
+UICorner.CornerRadius = UDim.new(0, 20) -- Ubah dari 10 ke 20 untuk sudut lebih tumpul
 UICorner.Parent = MainFrame
+
+-- Add thin border
+local UIStroke = Instance.new("UIStroke")
+UIStroke.Name = "MainFrameBorder"
+UIStroke.Thickness = 1 -- Border tipis
+UIStroke.Color = Color3.fromRGB(220, 220, 220) -- Putih abu-abu
+UIStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border -- Border di tepi frame
+UIStroke.Parent = MainFrame
 
 -- Top Bar
 local TopBar = Instance.new("Frame")
