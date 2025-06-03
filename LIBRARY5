@@ -312,7 +312,7 @@ function ModernGUILibrary.MakeTab(config)
     local tabContent = Instance.new("Frame")
     tabContent.Name = tabName .. "Content"
     tabContent.Size = UDim2.new(1, 0, 1, 0)
-    tabContent.Position = UDim2.new(0, 0, 0, 20)
+    tabContent.Position = UDim2.new(0, 0, 0, 0)
     tabContent.BackgroundTransparency = 1
     tabContent.Parent = ScrollingFrame
     tabContent.Visible = false
