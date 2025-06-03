@@ -208,28 +208,44 @@ local tabPositionY = {}
 local tabContentHeights = {}
 local activeTab = nil
 
--- Tab Container
-local TabContainer = Instance.new("Frame")
-TabContainer.Name = "TabContainer"
-TabContainer.Size = UDim2.new(0, 110, 1, 0)
-TabContainer.Position = UDim2.new(0, 0, 0, 0)
-TabContainer.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
-TabContainer.BorderSizePixel = 0
-TabContainer.Parent = MainFrame
-
-local TabContainerCorner = Instance.new("UICorner")
-TabContainerCorner.CornerRadius = UDim.new(0, 10)
-TabContainerCorner.Parent = TabContainer
-
-local TabListLayout = Instance.new("UIListLayout")
-TabListLayout.SortOrder = Enum.SortOrder.LayoutOrder
-TabListLayout.Padding = UDim.new(0, 12)
-TabListLayout.Parent = TabContainer
-
-local tabPadding = Instance.new("UIPadding")
-tabPadding.PaddingTop = UDim.new(0, 17) -- Tab pertama turun 10 pixel
-tabPadding.Parent = TabContainer
-
+local function createTabButton(tabName, iconName)
+    local button = Instance.new("TextButton")
+    button.Name = tabName .. "Tab"
+    button.Size = UDim2.new(1, 0, 0, 30)
+    button.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    button.BorderSizePixel = 0
+    button.Font = Enum.Font.GothamBold
+    button.TextColor3 = Color3.fromRGB(255, 255, 255)
+    button.TextSize = 14
+    button.Parent = TabContainer
+    
+    -- Cek apakah ini tab pertama
+    local tabCount = 0
+    for _, child in pairs(TabContainer:GetChildren()) do
+        if child:IsA("TextButton") and child.Name:match("Tab$") then
+            tabCount = tabCount + 1
+        end
+    end
+    
+    -- Jika ini tab pertama, tambahkan margin top
+    if tabCount == 1 then
+        button.LayoutOrder = 1
+        
+        -- Buat invisible spacer untuk push tab pertama ke bawah
+        local spacer = Instance.new("Frame")
+        spacer.Name = "FirstTabSpacer"
+        spacer.Size = UDim2.new(1, 0, 0, 20) -- 20 pixel spacing
+        spacer.BackgroundTransparency = 1
+        spacer.LayoutOrder = 0 -- Agar muncul sebelum tab pertama
+        spacer.Parent = TabContainer
+    else
+        button.LayoutOrder = tabCount
+    end
+    
+    local tabButtonCorner = Instance.new("UICorner")
+    tabButtonCorner.CornerRadius = UDim.new(0, 15)
+    tabButtonCorner.Parent = button
+    
     if iconName and FeatherIcons[iconName] then
         local icon = Instance.new("ImageLabel")
         icon.Name = "Icon"
