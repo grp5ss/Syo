@@ -14,7 +14,7 @@ local ModernGUILibrary = {}
 local FONT = Enum.Font.GothamBold
 local CORNER_RADIUS = UDim.new(0, 6)
 local COLORS = {
-    Frame = Color3.fromRGB(35, 35, 40),
+    Frame = Color3.fromRGB(40, 40, 40),
     Text = Color3.fromRGB(255, 255, 255),
     Accent = Color3.fromRGB(114, 137, 218),
     Success = Color3.fromRGB(87, 242, 135),
@@ -482,7 +482,7 @@ function ModernGUILibrary.createCheckbox(name, text, position, parent, onToggle)
     checkboxBG.Name = "Background"
     checkboxBG.Size = UDim2.new(0, 20, 0, 20)
     checkboxBG.Position = UDim2.new(1, -20, 0.5, -10)
-    checkboxBG.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+    checkboxBG.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
     checkboxBG.BorderSizePixel = 0
     checkboxBG.Parent = checkboxContainer
     
@@ -733,7 +733,7 @@ function ModernGUILibrary.createDropdown(name, labelText, options, defaultOption
     optionsScrollFrame.BackgroundTransparency = 1
     optionsScrollFrame.BorderSizePixel = 0
     optionsScrollFrame.ScrollBarThickness = 4
-    optionsScrollFrame.ScrollBarImageColor3 = Color3.fromRGB(100, 100, 100)
+    optionsScrollFrame.ScrollBarImageColor3 = Color3.fromRGB(40, 40, 40)
     optionsScrollFrame.ZIndex = 110
     optionsScrollFrame.Parent = menuContainer
     
@@ -909,7 +909,7 @@ function ModernGUILibrary.createButton(name, text, position, parent, onClick, ic
     buttonBG.Name = "Background"
     buttonBG.Size = UDim2.new(0, 60, 0, 22)
     buttonBG.Position = UDim2.new(1, -60, 0.5, -11)
-    buttonBG.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+    buttonBG.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
     buttonBG.BorderSizePixel = 0
     buttonBG.ClipsDescendants = true
     buttonBG.Parent = buttonContainer
@@ -923,7 +923,7 @@ function ModernGUILibrary.createButton(name, text, position, parent, onClick, ic
     ripple.Size = UDim2.new(0, 0, 0, 0)
     ripple.AnchorPoint = Vector2.new(0.5, 0.5)
     ripple.Position = UDim2.new(0.5, 0, 0.5, 0)
-    ripple.BackgroundColor3 = Color3.fromRGB(120, 230, 160)
+    ripple.BackgroundColor3 = Color3.fromRGB(200, 200, 200)
     ripple.BackgroundTransparency = 0.5
     ripple.BorderSizePixel = 0
     ripple.Visible = false
