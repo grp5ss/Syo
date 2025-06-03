@@ -34,6 +34,13 @@ local function InitializeFeatherIcons()
         ["align-center"] = "rbxassetid://7072980488",
         ["align-justify"] = "rbxassetid://7072980642",
         ["align-left"] = "rbxassetid://7072980796",
+        ["minimize-2"] = "rbxassetid://7072719125",
+        home = "rbxassetid://7072717697",
+        key = "rbxassetid://7072717958",
+        link = "rbxassetid://7072718226",
+        settings = "rbxassetid://7072721682",
+        send = "rbxassetid://7072721598",
+        user = "rbxassetid://7072724538",
         ["align-right"] = "rbxassetid://7072980973"
     }
     print("Using static Feather icons")
@@ -174,7 +181,7 @@ local YouTubeLabel = Instance.new("TextLabel")
 YouTubeLabel.Name = "YouTubeLabel"
 YouTubeLabel.Size = UDim2.new(1, 0, 0, 30)
 YouTubeLabel.Position = UDim2.new(0, 0, 1, -30)
-YouTubeLabel.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+YouTubeLabel.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 YouTubeLabel.BorderSizePixel = 0
 YouTubeLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 YouTubeLabel.TextSize = 16
