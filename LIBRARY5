@@ -70,7 +70,7 @@ MainFrame.Parent = ScreenGui
 
 -- Round the corners
 local UICorner = Instance.new("UICorner")
-UICorner.CornerRadius = UDim.new(0, 30) -- Sudut tumpul
+UICorner.CornerRadius = UDim.new(0, 10) -- Sudut tumpul
 UICorner.Parent = MainFrame
 
 -- Add thin border
