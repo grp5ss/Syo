@@ -246,10 +246,6 @@ local function createTabButton(tabName, iconName)
     tabButtonCorner.CornerRadius = UDim.new(0, 15)
     tabButtonCorner.Parent = button
     
-    local tabButtonCorner = Instance.new("UICorner")
-    tabButtonCorner.CornerRadius = UDim.new(0, 15)
-    tabButtonCorner.Parent = button
-
     if iconName and FeatherIcons[iconName] then
         local icon = Instance.new("ImageLabel")
         icon.Name = "Icon"
