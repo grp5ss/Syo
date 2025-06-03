@@ -68,7 +68,7 @@ GuiScale.Parent = ScreenGui
 -- Main Frame
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 450, 0, 350)
+MainFrame.Size = UDim2.new(0, 450, 0, 335)
 MainFrame.Position = UDim2.new(0.5, -216, 0.5, -180)
 MainFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 MainFrame.BorderSizePixel = 0
@@ -162,11 +162,11 @@ TabContainerCorner.Parent = TabContainer
 
 local TabListLayout = Instance.new("UIListLayout")
 TabListLayout.SortOrder = Enum.SortOrder.LayoutOrder
-TabListLayout.Padding = UDim.new(0, 7)
+TabListLayout.Padding = UDim.new(0, 12)
 TabListLayout.Parent = TabContainer
 
 local tabPadding = Instance.new("UIPadding")
-tabPadding.PaddingTop = UDim.new(0, 15) -- Tab pertama turun 10 pixel
+tabPadding.PaddingTop = UDim.new(0, 17) -- Tab pertama turun 10 pixel
 tabPadding.Parent = TabContainer
 
 -- ScrollingFrame
