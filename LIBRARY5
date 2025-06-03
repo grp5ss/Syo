@@ -92,7 +92,7 @@ UIStroke.Parent = MainFrame
 local TopBar = Instance.new("Frame")
 TopBar.Name = "TopBar"
 TopBar.Size = UDim2.new(1, 0, 0, 30)
-TopBar.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+TopBar.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 TopBar.BorderSizePixel = 0
 TopBar.Parent = MainFrame
 
@@ -261,7 +261,7 @@ local function setActiveTab(tabName)
             TweenService:Create(
                 prevTabButton,
                 TweenInfo.new(0.3),
-                {BackgroundColor3 = Color3.fromRGB(45, 45, 45)}
+                {BackgroundColor3 = Color3.fromRGB(0, 0, 0)}
             ):Play()
             local prevHighlight = prevTabButton:FindFirstChild("ActiveHighlight")
             if prevHighlight then
