@@ -318,7 +318,7 @@ function ModernGUILibrary.MakeTab(config)
     tabContent.Visible = false
 
     tabContents[tabName] = tabContent
-    tabPositionY[tabName] = 10
+    tabPositionY[tabName] = 50
     tabContentHeights[tabName] = 0
 
     local tabButton = createTabButton(tabName, iconName)
