@@ -165,6 +165,10 @@ TabListLayout.SortOrder = Enum.SortOrder.LayoutOrder
 TabListLayout.Padding = UDim.new(0, 5)
 TabListLayout.Parent = TabContainer
 
+local tabPadding = Instance.new("UIPadding")
+tabPadding.PaddingTop = UDim.new(0, 20) -- Tab pertama turun 10 pixel
+tabPadding.Parent = TabContainer
+
 -- ScrollingFrame
 local ScrollingFrame = Instance.new("ScrollingFrame")
 ScrollingFrame.Name = "ScrollingFrame"
@@ -212,7 +216,6 @@ local function createTabButton(tabName, iconName)
     button.Name = tabName .. "Tab"
     button.Size = UDim2.new(1, 0, 0, 30)
     button.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-    button.Position = UDim2.new(0, 0, 0, 20)
     button.BorderSizePixel = 0
     button.Font = Enum.Font.GothamBold
     button.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -227,7 +230,7 @@ local function createTabButton(tabName, iconName)
         local icon = Instance.new("ImageLabel")
         icon.Name = "Icon"
         icon.Size = UDim2.new(0, 20, 0, 20)
-        icon.Position = UDim2.new(0, 10, 0.5, 20)
+        icon.Position = UDim2.new(0, 10, 0.5, -10)
         icon.BackgroundTransparency = 1
         icon.Image = FeatherIcons[iconName]
         icon.Parent = button
@@ -235,7 +238,7 @@ local function createTabButton(tabName, iconName)
         local textLabel = Instance.new("TextLabel")
         textLabel.Name = "TabLabel"
         textLabel.Size = UDim2.new(1, -30, 1, 0)
-        textLabel.Position = UDim2.new(0, 35, 0, 20)
+        textLabel.Position = UDim2.new(0, 35, 0, 0)
         textLabel.BackgroundTransparency = 1
         textLabel.Font = Enum.Font.GothamBold
         textLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
