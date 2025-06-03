@@ -151,7 +151,7 @@ local TabContainer = Instance.new("Frame")
 TabContainer.Name = "TabContainer"
 TabContainer.Size = UDim2.new(0, 110, 1, -30)
 TabContainer.Position = UDim2.new(0, 0, 0, 30)
-TabContainer.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+TabContainer.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
 TabContainer.BorderSizePixel = 0
 TabContainer.Parent = MainFrame
 
@@ -171,7 +171,7 @@ ScrollingFrame.Size = UDim2.new(1, -110, 1, -60)
 ScrollingFrame.Position = UDim2.new(0, 110, 0, 30)
 ScrollingFrame.BackgroundTransparency = 1
 ScrollingFrame.ScrollBarThickness = 6
-ScrollingFrame.ScrollBarImageColor3 = Color3.fromRGB(0, 0, 0)
+ScrollingFrame.ScrollBarImageColor3 = Color3.fromRGB(10, 10, 10)
 ScrollingFrame.HorizontalScrollBarInset = Enum.ScrollBarInset.None
 ScrollingFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
 ScrollingFrame.Parent = MainFrame
