@@ -207,21 +207,17 @@ local tabPositionY = {}
 local tabContentHeights = {}
 local activeTab = nil
 
-local tabCount = 0
-
 local function createTabButton(tabName, iconName)
     local button = Instance.new("TextButton")
     button.Name = tabName .. "Tab"
     button.Size = UDim2.new(1, 0, 0, 30)
-    button.Position = UDim2.new(0, 0, 0, 30 + (tabCount * 35)) -- 30 = offset awal
     button.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    button.Position = UDim2.new(0, 0, 0, 20)
     button.BorderSizePixel = 0
     button.Font = Enum.Font.GothamBold
     button.TextColor3 = Color3.fromRGB(255, 255, 255)
     button.TextSize = 14
     button.Parent = TabContainer
-    
-    tabCount = tabCount + 1 -- Increment counter
     
     local tabButtonCorner = Instance.new("UICorner")
     tabButtonCorner.CornerRadius = UDim.new(0, 15)
@@ -231,7 +227,7 @@ local function createTabButton(tabName, iconName)
         local icon = Instance.new("ImageLabel")
         icon.Name = "Icon"
         icon.Size = UDim2.new(0, 20, 0, 20)
-        icon.Position = UDim2.new(0, 10, 0.5, -10)
+        icon.Position = UDim2.new(0, 10, 0.5, 20)
         icon.BackgroundTransparency = 1
         icon.Image = FeatherIcons[iconName]
         icon.Parent = button
