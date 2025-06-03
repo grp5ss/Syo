@@ -46,16 +46,23 @@ local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "ModernGUI"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ScreenGui.DisplayOrder = 10000000
 ScreenGui.Parent = PlayerGui
 if not ScreenGui.Parent then
     warn("Failed to parent ScreenGui to PlayerGui. Compatibility issue detected.")
 end
 
+-- Tambahkan UIScale untuk resize universal
+local GuiScale = Instance.new("UIScale")
+GuiScale.Name = "GuiScale"
+GuiScale.Scale = 0.8333 -- 1 / 1.2 untuk 1.2x lebih kecil
+GuiScale.Parent = ScreenGui
+
 -- Main Frame
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 425, 0, 300)
-MainFrame.Position = UDim2.new(0.5, -180, 0.5, -150)
+MainFrame.Size = UDim2.new(0, 375, 0, 300)
+MainFrame.Position = UDim2.new(0.5, -216, 0.5, -180)
 MainFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
 MainFrame.BorderSizePixel = 0
 MainFrame.ClipsDescendants = true
