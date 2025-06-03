@@ -72,7 +72,7 @@ MainFrame.Size = UDim2.new(0, 450, 0, 330)
 MainFrame.Position = UDim2.new(0.5, -216, 0.5, -180)
 MainFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 MainFrame.BorderSizePixel = 0
-MainFrame.ClipsDescendants = false -- Nonaktifkan untuk testing
+MainFrame.ClipsDescendants = true -- Nonaktifkan untuk testing
 MainFrame.Parent = ScreenGui
 
 -- Round the corners
@@ -91,7 +91,8 @@ UIStroke.Parent = MainFrame
 -- Top Bar
 local TopBar = Instance.new("Frame")
 TopBar.Name = "TopBar"
-TopBar.Size = UDim2.new(1, 0, 0, 30)
+TopBar.Size = UDim2.new(1, -110, 0, 30)
+TopBar.Position = UDim2.new(0, 110, 0, 0)
 TopBar.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 TopBar.BorderSizePixel = 0
 TopBar.Parent = MainFrame
@@ -149,8 +150,8 @@ MinimizeCorner.Parent = MinimizeButton
 -- Tab Container
 local TabContainer = Instance.new("Frame")
 TabContainer.Name = "TabContainer"
-TabContainer.Size = UDim2.new(0, 110, 1, -30)
-TabContainer.Position = UDim2.new(0, 0, 0, 30)
+TabContainer.Size = UDim2.new(0, 110, 1, 0)
+TabContainer.Position = UDim2.new(0, 0, 0, 0)
 TabContainer.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
 TabContainer.BorderSizePixel = 0
 TabContainer.Parent = MainFrame
@@ -179,8 +180,8 @@ ScrollingFrame.Parent = MainFrame
 -- YouTube Label
 local YouTubeLabel = Instance.new("TextLabel")
 YouTubeLabel.Name = "YouTubeLabel"
-YouTubeLabel.Size = UDim2.new(1, 0, 0, 30)
-YouTubeLabel.Position = UDim2.new(0, 0, 1, -30)
+YouTubeLabel.Size = UDim2.new(1, -110, 0, 30)
+YouTubeLabel.Position = UDim2.new(0, 110, 1, -30)
 YouTubeLabel.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 YouTubeLabel.BorderSizePixel = 0
 YouTubeLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -1152,6 +1153,104 @@ if isMobile then
         end
     end)
 end
+
+local CopyrightButton = Instance.new("TextButton")
+CopyrightButton.Name = "CopyrightButton"
+CopyrightButton.Size = UDim2.new(0, 25, 0, 25)
+CopyrightButton.Position = UDim2.new(0, 2, 0, 2)
+CopyrightButton.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+CopyrightButton.BorderSizePixel = 0
+CopyrightButton.Font = Enum.Font.GothamBold
+CopyrightButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+CopyrightButton.Text = "©"
+CopyrightButton.TextSize = 16
+CopyrightButton.Parent = TopBar
+CopyrightButton.ZIndex = 2
+
+local CopyrightCorner = Instance.new("UICorner")
+CopyrightCorner.CornerRadius = UDim.new(0, 5)
+CopyrightCorner.Parent = CopyrightButton
+
+-- Variabel untuk melacak status minimisasi
+local isTabContainerMinimized = false
+
+local CopyrightButton = Instance.new("TextButton")
+CopyrightButton.Name = "CopyrightButton"
+CopyrightButton.Size = UDim2.new(0, 25, 0, 25)
+CopyrightButton.Position = UDim2.new(0, 2, 0, 2)
+CopyrightButton.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+CopyrightButton.BorderSizePixel = 0
+CopyrightButton.Font = Enum.Font.GothamBold
+CopyrightButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+CopyrightButton.Text = "©"
+CopyrightButton.TextSize = 16
+CopyrightButton.Parent = TopBar
+CopyrightButton.ZIndex = 2
+
+local CopyrightCorner = Instance.new("UICorner")
+CopyrightCorner.CornerRadius = UDim.new(0, 5)
+CopyrightCorner.Parent = CopyrightButton
+
+-- Variabel untuk melacak status minimisasi
+local isTabContainerMinimized = false
+
+-- Fungsi toggle untuk TabContainer
+CopyrightButton.MouseButton1Click:Connect(function()
+    isTabContainerMinimized = not isTabContainerMinimized
+    if isTabContainerMinimized then
+        -- Minimalkan TabContainer ke kiri
+        TweenService:Create(
+            TabContainer,
+            TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
+            {Position = UDim2.new(-0.3, 0, 0, 0)}
+        ):Play()
+        -- Perluas ScrollingFrame
+        TweenService:Create(
+            ScrollingFrame,
+            TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
+            {Size = UDim2.new(1, 0, 1, -60), Position = UDim2.new(0, 0, 0, 30)}
+        ):Play()
+        -- Sesuaikan TopBar
+        TweenService:Create(
+            TopBar,
+            TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
+            {Size = UDim2.new(1, 0, 0, 30), Position = UDim2.new(0, 0, 0, 0)}
+        ):Play()
+        -- Sesuaikan YouTubeLabel
+        TweenService:Create(
+            YouTubeLabel,
+            TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
+            {Size = UDim2.new(1, 0, 0, 30), Position = UDim2.new(0, 0, 1, -30)}
+        ):Play()
+        CopyrightButton.Text = "»"
+    else
+        -- Kembalikan TabContainer
+        TweenService:Create(
+            TabContainer,
+            TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
+            {Position = UDim2.new(0, 0, 0, 0)}
+        ):Play()
+        -- Kembalikan ukuran ScrollingFrame
+        TweenService:Create(
+            ScrollingFrame,
+            TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
+            {Size = UDim2.new(1, -110, 1, -60), Position = UDim2.new(0, 110, 0, 30)}
+        ):Play()
+        -- Kembalikan TopBar
+        TweenService:Create(
+            TopBar,
+            TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
+            {Size = UDim2.new(1, -110, 0, 30), Position = UDim2.new(0, 110, 0, 0)}
+        ):Play()
+        -- Kembalikan YouTubeLabel
+        TweenService:Create(
+            YouTubeLabel,
+            TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
+            {Size = UDim2.new(1, -110, 0, 30), Position = UDim2.new(0, 110, 1, -30)}
+        ):Play()
+        CopyrightButton.Text = "©"
+    end
+end)
 
 CloseButton.MouseButton1Click:Connect(function()
     local confirmGui = Instance.new("Frame")
