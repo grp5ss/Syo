@@ -1365,8 +1365,34 @@ MinimizeButton.MouseButton1Click:Connect(function()
     
     -- Setelah animasi selesai, disable GUI
     minimizeTween.Completed:Connect(function()
-        ScreenGui.Enabled = false
-    end)
+    ScreenGui.Enabled = false
+    
+    -- Kembalikan semua transparency ke nilai semula
+    MainFrame.BackgroundTransparency = 0
+    MainFrame.Size = UDim2.new(0, 400, 0, 400) -- Kembalikan size asli juga
+    MainFrame.Position = originalPosition -- Kembalikan posisi asli
+    
+    -- Kembalikan TopBar transparency
+    TopBar.BackgroundTransparency = 0
+    
+    -- Kembalikan transparency semua child elements
+    for _, child in pairs(MainFrame:GetChildren()) do
+        if child:IsA("GuiObject") then
+            child.BackgroundTransparency = 0 -- Atau nilai asli lainnya
+            
+            if child:IsA("TextLabel") or child:IsA("TextButton") then
+                child.TextTransparency = 0
+            end
+        end
+    end
+    
+    -- Kembalikan transparency buttons di TopBar
+    CloseButton.BackgroundTransparency = 0
+    CloseButton.TextTransparency = 0
+    
+    MinimizeButton.BackgroundTransparency = 0
+    MinimizeButton.TextTransparency = 0
+end)
 end)
 
 return ModernGUILibrary
