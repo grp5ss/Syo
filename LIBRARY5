@@ -1319,56 +1319,53 @@ CloseButton.MouseButton1Click:Connect(function()
 end)
 
 MinimizeButton.MouseButton1Click:Connect(function()
-    local confirmMinimizeGui = Instance.new("Frame")
-    confirmMinimizeGui.Size = UDim2.new(0, 250, 0, 120)
-    confirmMinimizeGui.Position = UDim2.new(0.5, -125, 0.5, -60)
-    confirmMinimizeGui.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-    confirmMinimizeGui.BorderSizePixel = 0
-    confirmMinimizeGui.Parent = ScreenGui
-
-    local confirmMinimizeCorner = Instance.new("UICorner")
-    confirmMinimizeCorner.CornerRadius = UDim.new(0, 10)
-    confirmMinimizeCorner.Parent = confirmMinimizeGui
-
-    local confirmMinimizeText = Instance.new("TextLabel")
-    confirmMinimizeText.Size = UDim2.new(1, -20, 0, 60)
-    confirmMinimizeText.Position = UDim2.new(0, 10, 0, 10)
-    confirmMinimizeText.BackgroundTransparency = 1
-    confirmMinimizeText.TextColor3 = Color3.fromRGB(255, 255, 255)
-    confirmMinimizeText.TextSize = 14
-    confirmMinimizeText.Font = Enum.Font.GothamBold
-    confirmMinimizeText.Text = "Are you sure you want to minimize this GUI?"
-    confirmMinimizeText.TextWrapped = true
-    confirmMinimizeText.Parent = confirmMinimizeGui
-
-    local yesMinimizeButton = Instance.new("TextButton")
-    yesMinimizeButton.Size = UDim2.new(0, 80, 0, 30)
-    yesMinimizeButton.Position = UDim2.new(0, 40, 1, -40)
-    yesMinimizeButton.BackgroundColor3 = Color3.fromRGB(255, 201, 79)
-    yesMinimizeButton.Text = "Yes"
-    yesMinimizeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    yesMinimizeButton.Font = Enum.Font.GothamBold
-    yesMinimizeButton.Parent = confirmMinimizeGui
-
-    local nopeMinimizeButton = Instance.new("TextButton")
-    nopeMinimizeButton.Size = UDim2.new(0, 80, 0, 30)
-    nopeMinimizeButton.Position = UDim2.new(1, -120, 1, -40)
-    nopeMinimizeButton.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
-    nopeMinimizeButton.Text = "Nope"
-    nopeMinimizeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    nopeMinimizeButton.Font = Enum.Font.GothamBold
-    nopeMinimizeButton.Parent = confirmMinimizeGui
-
-    confirmMinimizeGui.Size = UDim2.new(0, 0, 0, 0)
-    TweenService:Create(confirmMinimizeGui, TweenInfo.new(0.3, Enum.EasingStyle.Back), {Size = UDim2.new(0, 250, 0, 120)}):Play()
-
-    yesMinimizeButton.MouseButton1Click:Connect(function()
+    -- Simpan posisi asli MainFrame
+    local originalPosition = MainFrame.Position
+    
+    -- Animasi MainFrame mengecil ke arah kanan dari posisi asli
+    local minimizeTween = TweenService:Create(MainFrame, TweenInfo.new(0.5, Enum.EasingStyle.Quart, Enum.EasingDirection.InOut), {
+        Size = UDim2.new(0, 0, 0, 0),
+        Position = UDim2.new(originalPosition.X.Scale + 0.25, originalPosition.X.Offset, originalPosition.Y.Scale, originalPosition.Y.Offset), -- Mengecil ke kanan dari posisi asli
+        BackgroundTransparency = 1
+    })
+    
+    -- Animasi TopBar juga fade out
+    local topBarTween = TweenService:Create(TopBar, TweenInfo.new(0.4, Enum.EasingStyle.Quart), {
+        BackgroundTransparency = 1
+    })
+    
+    -- Animasi semua child elements fade out lebih smooth
+    for _, child in pairs(MainFrame:GetChildren()) do
+        if child:IsA("GuiObject") then
+            TweenService:Create(child, TweenInfo.new(0.4, Enum.EasingStyle.Quart), {
+                BackgroundTransparency = 1
+            }):Play()
+            
+            if child:IsA("TextLabel") or child:IsA("TextButton") then
+                TweenService:Create(child, TweenInfo.new(0.4, Enum.EasingStyle.Quart), {
+                    TextTransparency = 1
+                }):Play()
+            end
+        end
+    end
+    
+    -- Animasi buttons di TopBar
+    TweenService:Create(CloseButton, TweenInfo.new(0.4, Enum.EasingStyle.Quart), {
+        BackgroundTransparency = 1,
+        TextTransparency = 1
+    }):Play()
+    
+    TweenService:Create(MinimizeButton, TweenInfo.new(0.4, Enum.EasingStyle.Quart), {
+        BackgroundTransparency = 1,
+        TextTransparency = 1
+    }):Play()
+    
+    minimizeTween:Play()
+    topBarTween:Play()
+    
+    -- Setelah animasi selesai, disable GUI
+    minimizeTween.Completed:Connect(function()
         ScreenGui.Enabled = false
-        confirmMinimizeGui:Destroy()
-    end)
-
-    nopeMinimizeButton.MouseButton1Click:Connect(function()
-        confirmMinimizeGui:Destroy()
     end)
 end)
 
