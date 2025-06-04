@@ -39,6 +39,7 @@ local function InitializeFeatherIcons()
         key = "rbxassetid://7072717958",
         link = "rbxassetid://7072718226",
         settings = "rbxassetid://7072721682",
+        ["help-circle"] = "rbxassetid://7072717605",
         send = "rbxassetid://7072721598",
         user = "rbxassetid://7072724538",
         ["align-right"] = "rbxassetid://7072980973"
@@ -1184,7 +1185,7 @@ local isTabContainerMinimized = false
 local CopyrightButton = Instance.new("TextButton")
 CopyrightButton.Name = "CopyrightButton"
 CopyrightButton.Size = UDim2.new(0, 25, 0, 25)
-CopyrightButton.Position = UDim2.new(0, 12, 0, 2)
+CopyrightButton.Position = UDim2.new(0, 9, 0, 2)
 CopyrightButton.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 CopyrightButton.BorderSizePixel = 0
 CopyrightButton.Font = Enum.Font.GothamBold
