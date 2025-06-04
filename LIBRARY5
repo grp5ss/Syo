@@ -1178,30 +1178,13 @@ if isMobile then
     end)
 end
 
-local CopyrightButton = Instance.new("TextButton")
-CopyrightButton.Name = "CopyrightButton"
-CopyrightButton.Size = UDim2.new(0, 25, 0, 25)
-CopyrightButton.Position = UDim2.new(0, 2, 0, 2)
-CopyrightButton.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-CopyrightButton.BorderSizePixel = 0
-CopyrightButton.Font = Enum.Font.GothamBold
-CopyrightButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-CopyrightButton.Text = "©"
-CopyrightButton.TextSize = 16
-CopyrightButton.Parent = TopBar
-CopyrightButton.ZIndex = 2
-
-local CopyrightCorner = Instance.new("UICorner")
-CopyrightCorner.CornerRadius = UDim.new(0, 5)
-CopyrightCorner.Parent = CopyrightButton
-
 -- Variabel untuk melacak status minimisasi
 local isTabContainerMinimized = false
 
 local CopyrightButton = Instance.new("TextButton")
 CopyrightButton.Name = "CopyrightButton"
 CopyrightButton.Size = UDim2.new(0, 25, 0, 25)
-CopyrightButton.Position = UDim2.new(0, 2, 0, 2)
+CopyrightButton.Position = UDim2.new(0, 12, 0, 2)
 CopyrightButton.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 CopyrightButton.BorderSizePixel = 0
 CopyrightButton.Font = Enum.Font.GothamBold
