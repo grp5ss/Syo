@@ -1367,31 +1367,45 @@ MinimizeButton.MouseButton1Click:Connect(function()
     minimizeTween.Completed:Connect(function()
     ScreenGui.Enabled = false
     
-    -- Kembalikan semua transparency ke nilai semula
+    -- Kembalikan MainFrame ke state asli
     MainFrame.BackgroundTransparency = 0
-    MainFrame.Size = UDim2.new(0, 400, 0, 400) -- Kembalikan size asli juga
-    MainFrame.Position = originalPosition -- Kembalikan posisi asli
+    MainFrame.Size = UDim2.new(0, 450, 0, 335) -- Size asli
+    MainFrame.Position = UDim2.new(0.5, -216, 0.5, -180) -- Position asli
+    MainFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0) -- Warna asli
     
-    -- Kembalikan TopBar transparency
+    -- Kembalikan TopBar ke state asli
     TopBar.BackgroundTransparency = 0
+    TopBar.BackgroundColor3 = Color3.fromRGB(0, 0, 0) -- Warna asli TopBar
     
-    -- Kembalikan transparency semua child elements
+    -- Kembalikan ScrollingFrame ke state asli
+    ScrollingFrame.BackgroundTransparency = 1 -- ScrollingFrame aslinya transparent
+    ScrollingFrame.ScrollBarImageColor3 = Color3.fromRGB(10, 10, 10) -- Warna scrollbar asli
+    
+    -- Kembalikan Title ke state asli
+    Title.TextTransparency = 0
+    Title.TextColor3 = Color3.fromRGB(255, 255, 255) -- Warna text asli
+    
+    -- Kembalikan transparency semua child elements lainnya
     for _, child in pairs(MainFrame:GetChildren()) do
-        if child:IsA("GuiObject") then
-            child.BackgroundTransparency = 0 -- Atau nilai asli lainnya
-            
-            if child:IsA("TextLabel") or child:IsA("TextButton") then
-                child.TextTransparency = 0
+        if child:IsA("GuiObject") and child ~= ScrollingFrame then -- Skip ScrollingFrame karena sudah di-handle
+            if child.Name ~= "UICorner" and child.Name ~= "MainFrameBorder" then -- Skip UI elements
+                child.BackgroundTransparency = 0
+                
+                if child:IsA("TextLabel") or child:IsA("TextButton") then
+                    child.TextTransparency = 0
+                end
             end
         end
     end
     
-    -- Kembalikan transparency buttons di TopBar
+    -- Kembalikan buttons di TopBar ke state asli
     CloseButton.BackgroundTransparency = 0
     CloseButton.TextTransparency = 0
+    CloseButton.BackgroundColor3 = Color3.fromRGB(0, 0, 0) -- Warna asli
     
     MinimizeButton.BackgroundTransparency = 0
     MinimizeButton.TextTransparency = 0
+    MinimizeButton.BackgroundColor3 = Color3.fromRGB(0, 0, 0) -- Warna asli
 end)
 end)
 
