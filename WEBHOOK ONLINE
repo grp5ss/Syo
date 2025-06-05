@@ -80,7 +80,7 @@ local function updateActiveUserCount(count)
         Body = HttpService:JSONEncode({
             ["embeds"] = {
                 {
-                    ["title"] = "🟢 **SADLY HE/SHE IS JUST LEFT**",
+                    ["title"] = "🎁 **SADLY HE/SHE IS JUST LEFT**",
                     ["description"] = "**ONLINE STATUS: NOPE**",
                     ["type"] = "rich",
                     ["color"] = count > 0 and 65280 or 16711680, -- Green if > 0, Red if 0
