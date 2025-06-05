@@ -1,0 +1,338 @@
+-- LocalScript - Active User Tracker with Execution Counter (FIXED)
+local HttpService = game:GetService("HttpService")
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
+local webhook_URL = "https://discord.com/api/webhooks/1377827044578168873/1vTnmUm3mnWLQZ_PCE9pMW3RT5602s8-29EXOVEIwUHlJXm7v5nvz6VtabtP4stbXR97"
+
+-- Variable untuk menyimpan message ID yang akan diupdate
+local messageId = nil
+local isActive = true
+local hasLeft = false
+
+-- Execution Counter Variables
+local COUNTER_KEY = "ScriptExecutionCounter" -- Simple counter key
+local executionCount = 0
+
+-- Player tracking variables
+local totalServerPlayers = #Players:GetPlayers() -- Get current server player count
+
+-- Function to find the correct HTTP request method based on the executor
+local function getHttpRequestFunction()
+    if syn and syn.request then
+        return syn.request
+    elseif http_request then
+        return http_request
+    elseif http and http.request then
+        return http.request
+    elseif httprequest then
+        return httprequest
+    elseif request then
+        return request
+    else
+        warn("No supported HTTP request function found for this executor.")
+        return nil
+    end
+end
+
+-- Get the appropriate HTTP request function
+local httpRequest = getHttpRequestFunction()
+
+if not httpRequest then
+    warn("HTTP request function not available!")
+    return
+end
+
+-- Function untuk read/write file (support berbagai executor)
+local function readFile(fileName)
+    local success, result = pcall(function()
+        if readfile then
+            return readfile(fileName)
+        elseif syn and syn.read_file then
+            return syn.read_file(fileName)
+        else
+            return nil
+        end
+    end)
+    return success and result or nil
+end
+
+local function writeFile(fileName, content)
+    local success = pcall(function()
+        if writefile then
+            writefile(fileName, content)
+            return true
+        elseif syn and syn.write_file then
+            syn.write_file(fileName, content)
+            return true
+        else
+            return false
+        end
+    end)
+    return success
+end
+
+-- Function untuk load execution counter
+local function loadExecutionCounter()
+    local data = readFile(COUNTER_KEY .. ".txt")
+    if data then
+        local success, count = pcall(function()
+            return tonumber(data) or 0
+        end)
+        return success and count or 0
+    end
+    return 0
+end
+
+-- Function untuk save execution counter
+local function saveExecutionCounter(count)
+    return writeFile(COUNTER_KEY .. ".txt", tostring(count))
+end
+
+-- Function untuk increment execution counter
+local function incrementExecutionCounter()
+    executionCount = loadExecutionCounter() + 1
+    saveExecutionCounter(executionCount)
+    return executionCount
+end
+
+-- Function untuk mengirim embed pertama kali dan mendapatkan message ID
+local function sendInitialMessage()
+    local currentCount = incrementExecutionCounter()
+    
+    local success, response = pcall(function()
+        return httpRequest({
+            Url = webhook_URL .. "?wait=true", -- wait=true untuk mendapatkan response data
+            Method = "POST",
+            Headers = {
+                ["Content-Type"] = "application/json"
+            },
+            Body = HttpService:JSONEncode({
+                ["embeds"] = {
+                    {
+                        ["title"] = "🟢 **SOMEONE EXECUTED THE SCRIPT!!**",
+                        ["description"] = "**ONLINE STATUS: YEAH :∆**\n\n📊 **Execution Count: " .. currentCount .. "**",
+                        ["type"] = "rich",
+                        ["color"] = 65280, -- Green color
+                        ["timestamp"] = os.date("!%Y-%m-%dT%H:%M:%SZ"),
+                        ["footer"] = {
+                            ["text"] = "Last Updated • Total Executions: " .. currentCount
+                        },
+                        ["fields"] = {
+                            {
+                                ["name"] = "🎯 Total Script Executions",
+                                ["value"] = "**" .. currentCount .. "** times",
+                                ["inline"] = true
+                            },
+                            {
+                                ["name"] = "🎮 Game Place ID",
+                                ["value"] = tostring(game.PlaceId),
+                                ["inline"] = true
+                            },
+                            {
+                                ["name"] = "👤 Player Username",
+                                ["value"] = "@" .. tostring(Players.LocalPlayer.Name),
+                                ["inline"] = true
+                            },
+                            {
+                                ["name"] = "🏷️ Display Name",
+                                ["value"] = tostring(Players.LocalPlayer.DisplayName),
+                                ["inline"] = true
+                            },
+                            {
+                                ["name"] = "👥 Total Server Players",
+                                ["value"] = "**" .. totalServerPlayers .. "** players",
+                                ["inline"] = true
+                            }
+                        }
+                    }
+                }
+            })
+        })
+    end)
+    
+    if not success then
+        warn("Failed to send initial message:", response)
+        return
+    end
+    
+    -- Parse response untuk mendapatkan message ID
+    if response and response.Body then
+        local success2, data = pcall(function()
+            return HttpService:JSONDecode(response.Body)
+        end)
+        
+        if success2 and data and data.id then
+            messageId = data.id
+            print("Message sent successfully! ID:", messageId)
+        else
+            warn("Failed to parse response body or get message ID")
+        end
+    else
+        warn("No response body received")
+    end
+end
+
+-- Function untuk update message ketika player leave
+local function sendLeaveMessage()
+    if not messageId or hasLeft then 
+        return 
+    end
+    
+    hasLeft = true
+    local currentCount = loadExecutionCounter()
+    local currentServerPlayers = #Players:GetPlayers()
+    
+    local success, response = pcall(function()
+        return httpRequest({
+            Url = webhook_URL .. "/messages/" .. messageId,
+            Method = "PATCH",
+            Headers = {
+                ["Content-Type"] = "application/json"
+            },
+            Body = HttpService:JSONEncode({
+                ["embeds"] = {
+                    {
+                        ["title"] = "🔴 **PLAYER HAS LEFT THE GAME**",
+                        ["description"] = "**ONLINE STATUS: OFFLINE**\n\n📊 **Total Executions: " .. currentCount .. "**",
+                        ["type"] = "rich",
+                        ["color"] = 16711680, -- Red color for leave
+                        ["timestamp"] = os.date("!%Y-%m-%dT%H:%M:%SZ"),
+                        ["footer"] = {
+                            ["text"] = "Player Left • Total Executions: " .. currentCount
+                        },
+                        ["fields"] = {
+                            {
+                                ["name"] = "🎯 Total Script Executions",
+                                ["value"] = "**" .. currentCount .. "** times",
+                                ["inline"] = true
+                            },
+                            {
+                                ["name"] = "🎮 Game Place ID",
+                                ["value"] = tostring(game.PlaceId),
+                                ["inline"] = true
+                            },
+                            {
+                                ["name"] = "👤 Player Username",
+                                ["value"] = "@" .. tostring(Players.LocalPlayer.Name),
+                                ["inline"] = true
+                            },
+                            {
+                                ["name"] = "🏷️ Display Name",
+                                ["value"] = tostring(Players.LocalPlayer.DisplayName),
+                                ["inline"] = true
+                            },
+                            {
+                                ["name"] = "👥 Server Players (When Left)",
+                                ["value"] = "**" .. currentServerPlayers .. "** players",
+                                ["inline"] = true
+                            }
+                        }
+                    }
+                }
+            })
+        })
+    end)
+    
+    if success then
+        print("Leave message sent successfully!")
+    else
+        warn("Failed to send leave message:", response)
+    end
+end
+
+-- Function untuk mengurangi active user saat script di-close
+local function decreaseActiveUser()
+    if not isActive then return end
+    isActive = false
+    
+    -- Update message dengan status leave
+    sendLeaveMessage()
+end
+
+-- Function untuk menampilkan execution count di console
+local function displayExecutionInfo()
+    local currentCount = loadExecutionCounter()
+    print("=== SCRIPT EXECUTION INFO ===")
+    print("Total Executions: " .. currentCount)
+    print("Game Place ID: " .. tostring(game.PlaceId))
+    print("Player Username: " .. tostring(Players.LocalPlayer.Name))
+    print("Display Name: " .. tostring(Players.LocalPlayer.DisplayName))
+    print("Total Server Players: " .. totalServerPlayers)
+    print("============================")
+end
+
+-- Wait for LocalPlayer to load properly
+if not Players.LocalPlayer then
+    Players:GetPropertyChangedSignal("LocalPlayer"):Wait()
+end
+
+-- Wait a bit more to ensure everything is loaded
+wait(1)
+
+-- Tampilkan info execution di console
+displayExecutionInfo()
+
+-- Kirim message pertama kali
+sendInitialMessage()
+
+-- Detect ketika player leave game - Multiple methods for better detection
+local function setupLeaveDetection()
+    -- Method 1: PlayerRemoving (might not work for LocalPlayer)
+    Players.PlayerRemoving:Connect(function(player)
+        if player == Players.LocalPlayer then
+            print("PlayerRemoving detected!")
+            decreaseActiveUser()
+        end
+    end)
+    
+    -- Method 2: Game close detection
+    game:BindToClose(function()
+        print("Game closing detected!")
+        decreaseActiveUser()
+        wait(2) -- Give time for the request to complete
+    end)
+    
+    -- Method 3: Connection lost detection
+    local connection = Players.LocalPlayer.AncestryChanged:Connect(function()
+        if not Players.LocalPlayer.Parent then
+            print("LocalPlayer ancestry changed - likely disconnecting!")
+            connection:Disconnect()
+            decreaseActiveUser()
+        end
+    end)
+    
+    -- Method 4: Heartbeat monitoring (backup)
+    local lastHeartbeat = tick()
+    local heartbeatConnection = RunService.Heartbeat:Connect(function()
+        lastHeartbeat = tick()
+    end)
+    
+    -- Monitor for heartbeat stops (game freeze/close)
+    spawn(function()
+        while isActive do
+            wait(5)
+            if tick() - lastHeartbeat > 10 and isActive then
+                print("Heartbeat stopped - game likely closed!")
+                heartbeatConnection:Disconnect()
+                decreaseActiveUser()
+                break
+            end
+        end
+    end)
+end
+
+-- Setup leave detection
+setupLeaveDetection()
+
+-- Optional: Command untuk reset counter (uncomment jika diperlukan)
+--[[
+local function resetExecutionCounter()
+    executionCount = 0
+    saveExecutionCounter(0)
+    print("Execution counter has been reset!")
+end
+-- resetExecutionCounter() -- Uncomment untuk reset
+--]]
+
+print("Script loaded successfully! Tracking active...")
