@@ -1,0 +1,74 @@
+-- Keysystem.txt
+-- File ini berisi definisi kunci-kunci yang valid
+
+-- Kunci untuk Verification (akses normal)
+getgenv().sf_key = "UN1QU4"
+
+-- Kunci untuk Early Access (akses khusus)
+getgenv().early_access_key = "ZUSUME_EARLY_ACCESS_2024"
+
+-- Opsional: Tambahkan multiple keys untuk verification
+getgenv().valid_keys = {
+    "ZUSUME2024_VERIFY",
+    "ZUSUME_MAIN_KEY",
+    "VERIFICATION_KEY_001",
+    "VERIFY_ACCESS_2024"
+}
+
+-- Opsional: Tambahkan multiple keys untuk early access
+getgenv().early_access_keys = {
+    "ZUSUME_EARLY_ACCESS_2024",
+    "EARLY_BETA_KEY",
+    "PREMIUM_ACCESS_001",
+    "VIP_EARLY_2024"
+}
+
+-- Fungsi untuk mengecek apakah key valid (opsional)
+function IsValidKey(inputKey, keyType)
+    if keyType == "verification" then
+        -- Cek single key
+        if sf_key and inputKey == sf_key then
+            return true
+        end
+        
+        -- Cek multiple keys
+        if valid_keys then
+            for _, key in pairs(valid_keys) do
+                if inputKey == key then
+                    return true
+                end
+            end
+        end
+        
+    elseif keyType == "early_access" then
+        -- Cek single key
+        if early_access_key and inputKey == early_access_key then
+            return true
+        end
+        
+        -- Cek multiple keys
+        if early_access_keys then
+            for _, key in pairs(early_access_keys) do
+                if inputKey == key then
+                    return true
+                end
+            end
+        end
+    end
+    
+    return false
+end
+
+-- Opsional: Sistem expiry date untuk keys
+getgenv().key_expiry = {
+    ["ZUSUME2024_VERIFY"] = os.time() + (30 * 24 * 60 * 60), -- 30 hari dari sekarang
+    ["ZUSUME_EARLY_ACCESS_2024"] = os.time() + (60 * 24 * 60 * 60), -- 60 hari dari sekarang
+}
+
+-- Fungsi untuk mengecek apakah key sudah expired
+function IsKeyExpired(key)
+    if key_expiry[key] then
+        return os.time() > key_expiry[key]
+    end
+    return false
+end
