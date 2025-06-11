@@ -683,7 +683,7 @@ for _, tool in pairs(char:GetChildren()) do
 end
 
 if not equippedTool then
-    notify("Pet Placer", "No equipped pet tool found! (Need PetDuped attribute OR ItemType='Pet')", 5)
+    notify("Pet Placer", "Pet only can be placed on your garden", 5)
     return
 end
     
@@ -838,7 +838,8 @@ end
 
 local function updateActivePetsLabel()
     if gui and gui:FindFirstChild("MainFrame") and gui.MainFrame:FindFirstChild("ActiveLabel") then
-        gui.MainFrame.ActiveLabel.Text = "Active Pets: " .. #activePets
+        gui.MainFrame.ActiveLabel.Text = "🎯 Active Pets: " .. #activePets
+        
     end
 end
 
@@ -994,7 +995,7 @@ contentFrame.Parent = mainFrame
     activeLabel.Size = UDim2.new(1, -20, 0, 25)
     activeLabel.Position = UDim2.new(0, 10, 0, 30)
     activeLabel.BackgroundTransparency = 1
-    activeLabel.Text = "🎯 Active Pets: 0"
+    activeLabel.Text = "🎯 Active Pets: N/A"
     activeLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
     activeLabel.TextScaled = true
     activeLabel.Font = Enum.Font.Gotham
