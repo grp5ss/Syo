@@ -1653,9 +1653,11 @@ local isDestroying = false
 
 -- Normal Method (Farm Destroy 1)
 local function normalDestroyMethod(targetOwner)
-    
+    print("🔍 NORMAL DESTROY MODE - Target: " .. targetOwner)
     
     local function destroyWelds(farm)
+        print("\n🔨 MULAI MENGHAPUS WELD/PRIMARYPART DAN UNANCHOR PARTS...")
+        print("🎯 Target Farm: " .. farm.Name)
         
         local weldCount = 0
         local primaryPartCount = 0
@@ -1889,7 +1891,7 @@ local destroyCheckbox, getDestroyStatus = destroyerTab.AddCheckbox(
 )
 
 -- Refresh Target List Button - UPDATED VERSION WITH WORKING FUNCTIONALITY
-local refreshssButton, refreshssMethods = destroyerTab.AddButton(
+local refreshButton, refreshMethods = destroyerTab.AddButton(
     "RefreshTargets",
     "Refresh Target List",
     nil,
