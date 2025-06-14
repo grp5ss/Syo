@@ -1,0 +1,249 @@
+-- LocalScript (StarterPlayerScripts) - CLIENT-SIDE ASSET LOADING
+-- Method 1: Using game:GetObjects() only
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+local ContentProvider = game:GetService("ContentProvider")
+
+local player = Players.LocalPlayer
+
+-- Asset IDs untuk pets
+local PET_ASSET_IDS = {
+    -- ⚠️ GANTI DENGAN ASSET ID YANG VALID ⚠️
+    ["Night Owl"] = "rbxassetid://120195350056176",        -- Format: rbxassetid://ID
+    ["Queen Bee"] = "rbxassetid://89199543935492",        
+    ["Dragonfly"] = "rbxassetid://134853254922587",     
+    
+    
+}
+
+-- Fungsi untuk membuat folder structure: ReplicatedStorage.Assets.Models.PetAssets
+local function createPetAssetsFolder()
+    -- Create Assets folder if it doesn't exist
+    local assetsFolder = ReplicatedStorage:FindFirstChild("Assets")
+    if not assetsFolder then
+        assetsFolder = Instance.new("Folder")
+        assetsFolder.Name = "Assets"
+        assetsFolder.Parent = ReplicatedStorage
+        print("✅ Folder Assets berhasil dibuat")
+    end
+    
+    -- Create Models folder if it doesn't exist
+    local modelsFolder = assetsFolder:FindFirstChild("Models")
+    if not modelsFolder then
+        modelsFolder = Instance.new("Folder")
+        modelsFolder.Name = "Models"
+        modelsFolder.Parent = assetsFolder
+        print("✅ Folder Models berhasil dibuat")
+    end
+    
+    -- Create PetAssets folder if it doesn't exist
+    local petAssetsFolder = modelsFolder:FindFirstChild("PetAssets")
+    if not petAssetsFolder then
+        petAssetsFolder = Instance.new("Folder")
+        petAssetsFolder.Name = "PetAssets"
+        petAssetsFolder.Parent = modelsFolder
+        print("✅ Folder PetAssets berhasil dibuat di ReplicatedStorage.Assets.Models.PetAssets")
+    end
+    
+    return petAssetsFolder
+end
+
+-- Load menggunakan game:GetObjects() 
+local function loadPetWithGetObjects(assetUrl, petName, parentFolder)
+    local success, result = pcall(function()
+        return game:GetObjects(assetUrl)
+    end)
+    
+    if success and result and #result > 0 then
+        local model = result[1]
+        model.Name = petName
+        model.Parent = parentFolder
+        
+        -- Setup model properties
+        if model:IsA("Model") then
+            for _, part in pairs(model:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    part.Anchored = true
+                end
+            end
+        end
+        
+        print("✅ [GetObjects] Berhasil load " .. petName)
+        return model
+    else
+        warn("❌ [GetObjects] Gagal load " .. petName .. " - " .. tostring(result))
+        return nil
+    end
+end
+
+-- Preload dengan ContentProvider
+local function preloadAsset(assetUrl)
+    local success, result = pcall(function()
+        ContentProvider:PreloadAsync({assetUrl})
+    end)
+    
+    if success then
+        print("✅ [Preload] Asset preloaded: " .. assetUrl)
+    else
+        warn("❌ [Preload] Gagal preload: " .. assetUrl)
+    end
+end
+
+-- Fungsi utama untuk load semua pets dengan method 1 saja
+local function loadAllPetAssets()
+    print("🚀 [CLIENT] Loading pets dengan game:GetObjects()...")
+    
+    local petAssetsFolder = createPetAssetsFolder()
+    local successCount = 0
+    local totalAttempts = 0
+    
+    -- Clear existing pets
+    for _, child in pairs(petAssetsFolder:GetChildren()) do
+        child:Destroy()
+    end
+    
+    -- Load pets menggunakan GetObjects
+    print("📥 Menggunakan game:GetObjects()...")
+    for petName, assetUrl in pairs(PET_ASSET_IDS) do
+        totalAttempts = totalAttempts + 1
+        
+        -- Preload asset first
+        preloadAsset(assetUrl)
+        wait(0.1)
+        
+        -- Try to load with GetObjects
+        local model = loadPetWithGetObjects(assetUrl, petName, petAssetsFolder)
+        if model then
+            successCount = successCount + 1
+        end
+        
+        wait(0.1) -- Rate limiting
+    end
+    
+    print("📊 HASIL LOADING:")
+    print("   ✅ Berhasil: " .. successCount .. "/" .. totalAttempts .. " pets")
+    print("   📁 Lokasi: ReplicatedStorage.Assets.Models.PetAssets")
+    
+    return successCount
+end
+
+-- Fungsi untuk spawn pet dari folder
+local function spawnPetFromFolder(petName, position)
+    local petAssetsFolder = ReplicatedStorage:FindFirstChild("Assets")
+    if petAssetsFolder then
+        petAssetsFolder = petAssetsFolder:FindFirstChild("Models")
+        if petAssetsFolder then
+            petAssetsFolder = petAssetsFolder:FindFirstChild("PetAssets")
+        end
+    end
+    
+    if not petAssetsFolder then
+        warn("❌ PetAssets folder tidak ditemukan di ReplicatedStorage.Assets.Models.PetAssets!")
+        return nil
+    end
+    
+    local petTemplate = petAssetsFolder:FindFirstChild(petName)
+    if not petTemplate then
+        warn("❌ Pet " .. petName .. " tidak ditemukan!")
+        return nil
+    end
+    
+    local newPet = petTemplate:Clone()
+    newPet.Parent = workspace
+    newPet.Name = petName .. "_" .. player.Name
+    
+    -- Set position
+    if newPet.PrimaryPart then
+        newPet:SetPrimaryPartCFrame(CFrame.new(position))
+    else
+        local firstPart = newPet:FindFirstChildOfClass("BasePart")
+        if firstPart then
+            firstPart.CFrame = CFrame.new(position)
+        end
+    end
+    
+    -- Unanchor for physics
+    for _, part in pairs(newPet:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.Anchored = false
+        end
+    end
+    
+    print("✅ Pet " .. petName .. " spawned!")
+    return newPet
+end
+
+-- List available pets
+local function listAvailablePets()
+    local petAssetsFolder = ReplicatedStorage:FindFirstChild("Assets")
+    if petAssetsFolder then
+        petAssetsFolder = petAssetsFolder:FindFirstChild("Models")
+        if petAssetsFolder then
+            petAssetsFolder = petAssetsFolder:FindFirstChild("PetAssets")
+        end
+    end
+    
+    if petAssetsFolder then
+        print("🐾 Available Pets in Folder:")
+        for _, pet in pairs(petAssetsFolder:GetChildren()) do
+            print("  - " .. pet.Name)
+        end
+    else
+        warn("❌ PetAssets folder tidak ditemukan!")
+    end
+end
+
+-- AUTO-RUN saat script dimulai
+spawn(function()
+    wait(0.1) -- Wait for game to fully load
+    
+    print("🎮 Starting PET ASSETS AUTO-LOADER...")
+    
+    local successCount = loadAllPetAssets()
+    
+    wait(0.1)
+    listAvailablePets()
+    
+    if successCount > 0 then
+        print("✅ PetAssets folder siap digunakan!")
+        
+        -- Optional: Spawn one pet as example
+        local testPosition = Vector3.new(0, 10, 0)
+        if player.Character and player.Character.PrimaryPart then
+            testPosition = player.Character.PrimaryPart.Position + Vector3.new(5, 0, 5)
+        end
+        
+        -- Try spawning first available pet
+        local petAssetsFolder = ReplicatedStorage:FindFirstChild("Assets")
+        if petAssetsFolder then
+            petAssetsFolder = petAssetsFolder:FindFirstChild("Models")
+            if petAssetsFolder then
+                petAssetsFolder = petAssetsFolder:FindFirstChild("PetAssets")
+            end
+        end
+        
+        if petAssetsFolder and #petAssetsFolder:GetChildren() > 0 then
+            local firstPet = petAssetsFolder:GetChildren()[1]
+            spawnPetFromFolder(firstPet.Name, testPosition)
+        end
+    else
+        warn("⚠️ Tidak ada pets yang berhasil dimuat!")
+    end
+end)
+
+-- Global functions
+_G.SpawnPetFromAssets = spawnPetFromFolder
+_G.ListPetsInAssets = listAvailablePets
+_G.ReloadPetAssets = function()
+    local assetsFolder = ReplicatedStorage:FindFirstChild("Assets")
+    if assetsFolder then
+        local modelsFolder = assetsFolder:FindFirstChild("Models")
+        if modelsFolder then
+            local oldFolder = modelsFolder:FindFirstChild("PetAssets")
+            if oldFolder then oldFolder:Destroy() end
+        end
+    end
+    wait(0.1)
+    loadAllPetAssets()
+end
