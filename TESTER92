@@ -2053,6 +2053,21 @@ end
 -- Get initial farm owners
 local farmOwners = getAllFarmOwners()
 
+local update22Header, update22HeaderMethods = destroyerTab.AddLabel(
+    "Update22Header",
+    "DESTROYER TAB",
+    nil,
+    {
+        font = Enum.Font.GothamBold,
+        hasBackground = true,
+        textSize = 16,
+        backgroundColor = Color3.fromRGB(255, 0, 0),
+        textAlignment = Enum.TextXAlignment.Center,
+        backgroundTransparency = 0.1,
+        textColor = Color3.fromRGB(255, 255, 255)
+    }
+)
+
 -- Dropdown 1 - Select Target (Farm Owner)
 local targetDropdown, targetMethods = destroyerTab.AddDropdown(
     "SelectTarget",
