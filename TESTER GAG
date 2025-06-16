@@ -205,6 +205,7 @@ local autoTeleport1, getAutoTeleportStatus1 = window.AddCheckbox(
     end
 )
 
+-- Currency system variables
 local CURRENCY_FILE = "ZysumeCurrency.txt"
 local currentCurrency = 0
 local gameActive = false
@@ -488,6 +489,7 @@ local function stopGame()
     
     ModernGUILibrary.createNotification("ðŸ›‘ Coin collecting game stopped!", "warning")
 end
+
 
 loadCurrency()
 
@@ -1074,7 +1076,6 @@ end
 spawn(ensureNoCollision)
 spawnPetCheckbox.ZIndex = 2
 
--- Real-time currency update system
 spawn(function()
     while true do
         if currencyLabel then
@@ -1104,7 +1105,7 @@ player.CharacterAdded:Connect(function(character)
     end
 end)
 
-updateCurrencyLabel()
+updateCurrencyLabel() -- Initial update
 
 local petPlacerCheckbox, petPlacerElement = spawnerTab.AddCheckbox(
     "PetPlacer",
@@ -2484,36 +2485,6 @@ if PlayerGui:FindFirstChild("ModernGUI") and
     PlayerGui.ModernGUI.MainFrame.TopBar.Title.Text = "GROW A GARDEN"
 end
 
-spawn(function()
-    while true do
-        if currencyLabel then
-            updateCurrencyLabel()
-        end
-        wait(0.5) -- Backup update every 0.5 seconds
-    end
-end)
-
--- Auto-save currency system
-spawn(function()
-    while true do
-        saveCurrency()
-        wait(3) -- Save every 3 seconds
-    end
-end)
-
--- Character respawn handling
-player.CharacterAdded:Connect(function(character)
-    if gameActive then
-        character:WaitForChild("HumanoidRootPart")
-        wait(1)
-        -- Respawn in game area if game is active
-        if gameArea and character:FindFirstChild("HumanoidRootPart") then
-            character.HumanoidRootPart.CFrame = CFrame.new(gameArea.Position + Vector3.new(0, 10, 0))
-        end
-    end
-end)
-
-
 wait(0.2)
 pcall(function()
     loadstring(game:HttpGet("https://raw.githubusercontent.com/ZusumeHub/ZusumeHub/refs/heads/main/indixe"))()
@@ -2523,4 +2494,3 @@ pcall(function()
 end)
 
 ModernGUILibrary.createNotification("GROW A GARDEN SCRIPT V5", "success")
-updateCurrencyLabel() -- Initial update
