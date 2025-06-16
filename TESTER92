@@ -2465,32 +2465,6 @@ local updateHeader, updateHeaderMethods = updateTab.AddLabel(
     }
 )
 
-local updateLabel1, updateLabel1s = updateTab.AddLabel(
-    "Updater1",
-    "[ + ] Pet Placer V1.0 { â€¢.â€¢ }",
-    nil,
-    {
-        font = Enum.Font.GothamBold,
-        hasBackground = true,
-        textSize = 14,
-        backgroundTransparency = 0,
-        textColor = Color3.fromRGB(255, 255, 255)
-    }
-)
-
-local updateLabel2, updateLabel2s = updateTab.AddLabel(
-    "Updater3",
-    "[ + ] Dark Spawner Loadstring Script",
-    nil,
-    {
-        font = Enum.Font.GothamBold,
-        hasBackground = true,
-        textSize = 14,
-        backgroundTransparency = 0,
-        textColor = Color3.fromRGB(255, 255, 255)
-    }
-)
-
 -- Set title for the GUI
 if PlayerGui:FindFirstChild("ModernGUI") and 
    PlayerGui.ModernGUI:FindFirstChild("MainFrame") and
