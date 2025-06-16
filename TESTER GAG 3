@@ -1144,7 +1144,7 @@ petPlacerCheckbox.ZIndex = 2
 
 local infoLabel, infoMethods = spawnerTab.AddLabel(
     "InfoPlacerPet",
-    " Just Working on Dragonfly & Queen Bee ",
+    "Fixed few pet",
     nil,
     {
         font = Enum.Font.GothamBold,
@@ -1156,26 +1156,6 @@ local infoLabel, infoMethods = spawnerTab.AddLabel(
         
     }
 )
-
--- Pet Spawner (by Dark) Checkbox
-local petSpawnerDarkCheckbox, petSpawnerDarkElement = spawnerTab.AddCheckbox(
-    "PetSpawnerDark",
-    "Pet Spawner [ by Dark ] [ Real Animation ]",
-    nil,
-    function(checked)
-        if checked then
-            ModernGUILibrary.createNotification("Loading Pet Spawner by Dark...", "info")
-            pcall(function()
-                loadstring(game:HttpGet("https://raw.githubusercontent.com/SpaceScriptHUB/petspawner/refs/heads/main/GrowaGardenVisual",true))()
-                ModernGUILibrary.createNotification("Pet Spawner by Dark loaded!", "success")
-            end)
-        else
-            ModernGUILibrary.createNotification("Pet Spawner by Dark disabled", "warning")
-        end
-    end
-)
-petSpawnerDarkCheckbox.ZIndex = 2
-
 
 local spawnerHeader, spawnerHeaderMethods = spawnerTab.AddLabel(
     "SpawnerHeader",
