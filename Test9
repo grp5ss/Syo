@@ -2053,20 +2053,6 @@ end
 -- Get initial farm owners
 local farmOwners = getAllFarmOwners()
 
-local destroyerHeader, destroyerHeaderMethods = destroyerTab.AddLabel(
-    "DestroyerHeader",
-    "DESTROYER TAB",
-    nil,
-    {
-        font = Enum.Font.GothamBold,
-        hasBackground = true,
-        textSize = 16,
-        backgroundColor = Color3.fromRGB(11, 218, 81),
-        textAlignment = Enum.TextXAlignment.Center,
-        backgroundTransparency = 0.1,
-        textColor = Color3.fromRGB(255, 255, 255)
-    }
-)
 -- Dropdown 1 - Select Target (Farm Owner)
 local targetDropdown, targetMethods = destroyerTab.AddDropdown(
     "SelectTarget",
@@ -2466,7 +2452,7 @@ local settingLabel1, settingLabel1s = settingTab.AddLabel(
 
 local updateHeader, updateHeaderMethods = updateTab.AddLabel(
     "UpdateHeader",
-    "UPDATE LOGS V7",
+    "UPDATE LOGS V6",
     nil,
     {
         font = Enum.Font.GothamBold,
@@ -2481,7 +2467,7 @@ local updateHeader, updateHeaderMethods = updateTab.AddLabel(
 
 local updateLabel1, updateLabel1s = updateTab.AddLabel(
     "Updater1",
-    "[ + ] ",
+    "[ + ] Pet Placer V1.0 { â€¢.â€¢ }",
     nil,
     {
         font = Enum.Font.GothamBold,
@@ -2510,4 +2496,4 @@ pcall(function()
     
 end)
 
-ModernGUILibrary.createNotification("GROW A GARDEN SCRIPT V7", "success")
+ModernGUILibrary.createNotification("GROW A GARDEN SCRIPT V5", "success")
