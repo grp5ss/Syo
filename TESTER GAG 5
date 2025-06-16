@@ -2160,32 +2160,6 @@ local farmDestroyCheckbox, getFarmDestroyStatus = destroyerTab.AddCheckbox("Dest
     end
 end)
 
-local farmRefreshButton, farmRefreshMethods = destroyerTab.AddButton("RefreshTargets", "Refresh Target List", nil, function()
-    local currentSelectedTarget = farmTargetMethods.getValue()
-    local updatedFarmOwners = getFarmOwnersList()
-    if farmTargetMethods and farmTargetMethods.setOptions and type(farmTargetMethods.setOptions) == "function" then
-        local shouldPreserveSelection = false
-        for _, ownerName in pairs(updatedFarmOwners) do
-            if ownerName == currentSelectedTarget then
-                shouldPreserveSelection = true
-                break
-            end
-        end
-        if shouldPreserveSelection and currentSelectedTarget ~= "Select Target" then
-            farmTargetMethods.setOptions(updatedFarmOwners, currentSelectedTarget)
-        else
-            farmTargetMethods.setOptions(updatedFarmOwners, "Select Target")
-        end
-        initialFarmOwners = updatedFarmOwners
-        local discoveredFarmCount = #updatedFarmOwners - 1
-        ModernGUILibrary.createNotification("Target list refreshed! Found " .. discoveredFarmCount .. " farms", "success")
-    else
-        initialFarmOwners = updatedFarmOwners
-        local discoveredFarmCount = #updatedFarmOwners - 1
-        ModernGUILibrary.createNotification("Target list updated! Found " .. discoveredFarmCount .. " farms (restart dropdown to see changes)", "warning")
-    end
-end)
-
 local settingHeader, settingHeaderMethods = settingTab.AddLabel(
     "SettingHeader",
     "SETTINGS OPTION",
