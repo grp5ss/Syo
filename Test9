@@ -2455,7 +2455,7 @@ local set2, set2s = settingTab.AddCheckbox(
 
 local updateHeader, updateHeaderMethods = updateTab.AddLabel(
     "UpdateHeader",
-    "UPDATE LOGS V6",
+    "UPDATE LOGS V7",
     nil,
     {
         font = Enum.Font.GothamBold,
@@ -2468,6 +2468,57 @@ local updateHeader, updateHeaderMethods = updateTab.AddLabel(
     }
 )
 
+local updLabel1, updLabel1s = updateTab.AddLabel(
+    "Upd1",
+    "[ + ] Zysume Currency",
+    nil,
+    {
+        font = Enum.Font.GothamBold,
+        hasBackground = true,
+        textSize = 14,
+        backgroundTransparency = 0,
+        textColor = Color3.fromRGB(255, 255, 255)
+    }
+)
+
+local updLabel2, updLabel2s = updateTab.AddLabel(
+    "Upd2",
+    "[ + ] Farm Destroyer",
+    nil,
+    {
+        font = Enum.Font.GothamBold,
+        hasBackground = true,
+        textSize = 14,
+        backgroundTransparency = 0,
+        textColor = Color3.fromRGB(255, 255, 255)
+    }
+)
+
+local updLabel3, updLabel3s = updateTab.AddLabel(
+    "Upd3",
+    "[ + ] Pet Weight Multiplier",
+    nil,
+    {
+        font = Enum.Font.GothamBold,
+        hasBackground = true,
+        textSize = 14,
+        backgroundTransparency = 0,
+        textColor = Color3.fromRGB(255, 255, 255)
+    }
+)
+
+local updLabel4, updLabel4s = updateTab.AddLabel(
+    "Upd4",
+    "[ + ] Fixed Pet/Seed Spawner",
+    nil,
+    {
+        font = Enum.Font.GothamBold,
+        hasBackground = true,
+        textSize = 14,
+        backgroundTransparency = 0,
+        textColor = Color3.fromRGB(255, 255, 255)
+    }
+)
 
 
 -- Set title for the GUI
