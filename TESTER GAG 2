@@ -205,8 +205,330 @@ local autoTeleport1, getAutoTeleportStatus1 = window.AddCheckbox(
     end
 )
 
-local spawnerHeader, spawnerHeaderMethods = spawnerTab.AddLabel(
+-- Currency system variables
+local CURRENCY_FILE = "ZysumeCurrency.txt"
+local currentCurrency = 0
+local gameActive = false
+local gameObjects = {}
+local originalPosition = nil
+local gameArea = nil
+local currencyLabel = nil
+
+
+-- Load currency from file
+local function loadCurrency()
+    if readfile and isfile and isfile(CURRENCY_FILE) then
+        local success, data = pcall(function()
+            return readfile(CURRENCY_FILE)
+        end)
+        if success and data then
+            local amount = tonumber(data)
+            if amount then
+                currentCurrency = amount
+                return amount
+            end
+        end
+    end
+    currentCurrency = 0
+    return 0
+end
+
+-- Save currency to file
+local function saveCurrency()
+    if writefile then
+        pcall(function()
+            writefile(CURRENCY_FILE, tostring(currentCurrency))
+        end)
+    end
+end
+
+-- Update currency label with realtime support
+local function updateCurrencyLabel()
+    local currencyText = "ZYSUME CURRENCY: " .. string.format("%.1f", currentCurrency)
+    
+    -- Method 1: Direct update to the TextLabel object (most reliable)
+    if currencyLabel and currencyLabel.Text then
+        currencyLabel.Text = currencyText
+    end
+    
+    -- Method 2: Fallback search method for safety
+    pcall(function()
+        if PlayerGui:FindFirstChild("ModernGUI") then
+            local gui = PlayerGui.ModernGUI
+            local function findAndUpdateLabel(parent)
+                for _, child in pairs(parent:GetChildren()) do
+                    if child:IsA("TextLabel") and (string.find(child.Text, "ZYSUME CURRENCY") or child.Name:find("SpawnerHeaderLabel")) then
+                        child.Text = currencyText
+                        return true
+                    elseif child:IsA("GuiObject") and #child:GetChildren() > 0 then
+                        if findAndUpdateLabel(child) then
+                            return true
+                        end
+                    end
+                end
+                return false
+            end
+            findAndUpdateLabel(gui)
+        end
+    end)
+end
+
+-- Create game area
+local function createGameArea()
+    if gameArea then
+        gameArea:Destroy()
+    end
+    
+    -- Create a large basepart far from spawn
+    gameArea = Instance.new("Part")
+    gameArea.Name = "CoinGameArea"
+    gameArea.Size = Vector3.new(200, 5, 200)
+    gameArea.Position = Vector3.new(10000, 1000, 10000) -- Far from spawn
+    gameArea.Anchored = true
+    gameArea.CanCollide = true
+    gameArea.Material = Enum.Material.Grass
+    gameArea.BrickColor = BrickColor.new("Bright green")
+    gameArea.Parent = workspace
+    
+    -- Add some basic lighting/atmosphere
+    local light = Instance.new("SpotLight")
+    light.Brightness = 2
+    light.Range = 100
+    light.Parent = gameArea
+    
+    return gameArea
+end
+
+-- Create coin with enhanced visual effects
+local function createCoin(position)
+    local coin = Instance.new("Part")
+    coin.Name = "CollectableCoin"
+    coin.Size = Vector3.new(3, 3, 0.5)
+    coin.Shape = Enum.PartType.Cylinder
+    coin.Material = Enum.Material.Neon
+    coin.BrickColor = BrickColor.new("Bright yellow")
+    coin.Position = position
+    coin.Anchored = true
+    coin.CanCollide = false
+    coin.Parent = workspace
+    
+    -- Add highlight effect
+    local highlight = Instance.new("SelectionBox")
+    highlight.Adornee = coin
+    highlight.Color3 = Color3.fromRGB(255, 255, 0)
+    highlight.LineThickness = 0.2
+    highlight.Transparency = 0.3
+    highlight.Parent = coin
+    
+    -- Add spinning animation
+    local spinTween = TweenService:Create(
+        coin,
+        TweenInfo.new(2, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut, -1),
+        {Rotation = Vector3.new(0, 360, 0)}
+    )
+    spinTween:Play()
+    
+    -- Add floating animation
+    local originalPos = position
+    local floatTween = TweenService:Create(
+        coin,
+        TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+        {Position = originalPos + Vector3.new(0, 2, 0)}
+    )
+    floatTween:Play()
+    
+    return coin
+end
+
+-- Generate random position around player
+local function getRandomCoinPosition(playerPos)
+    local distance = math.random(5, 50) -- 1-50 studs as requested
+    local angle = math.random() * 2 * math.pi
+    local height = math.random(2, 8) -- Random height for variety
+    
+    local x = playerPos.X + distance * math.cos(angle)
+    local z = playerPos.Z + distance * math.sin(angle)
+    local y = playerPos.Y + height
+    
+    return Vector3.new(x, y, z)
+end
+
+-- Spawn coins around player
+local function spawnCoins()
+    if not gameActive or not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
+        return
+    end
+    
+    local playerPos = player.Character.HumanoidRootPart.Position
+    
+    -- Clear existing coins
+    for _, coin in pairs(gameObjects) do
+        if coin and coin.Parent then
+            coin:Destroy()
+        end
+    end
+    gameObjects = {}
+    
+    -- Spawn 10 coins
+    for i = 1, 10 do
+        local coinPos = getRandomCoinPosition(playerPos)
+        local coin = createCoin(coinPos)
+        table.insert(gameObjects, coin)
+        
+        -- Add touch detection with immediate realtime update
+        local connection
+        connection = coin.Touched:Connect(function(hit)
+            if hit.Parent == player.Character and hit.Parent:FindFirstChild("Humanoid") then
+                -- Collect coin
+                currentCurrency = currentCurrency + 0.1
+                
+                -- IMMEDIATE REALTIME UPDATE
+                updateCurrencyLabel()
+                saveCurrency()
+                
+                -- Visual feedback
+                ModernGUILibrary.createNotification("Coin collected! +0.1 ðŸ’°", "success")
+                
+                -- Remove coin with collection effect
+                local collectTween = TweenService:Create(
+                    coin,
+                    TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.In),
+                    {Size = Vector3.new(0, 0, 0), Transparency = 1}
+                )
+                collectTween:Play()
+                
+                collectTween.Completed:Connect(function()
+                    coin:Destroy()
+                end)
+                
+                -- Remove from gameObjects table
+                for j, obj in pairs(gameObjects) do
+                    if obj == coin then
+                        table.remove(gameObjects, j)
+                        break
+                    end
+                end
+                
+                -- Check if all coins collected
+                spawn(function()
+                    wait(0.5) -- Small delay to let animation finish
+                    local remainingCoins = 0
+                    for _, obj in pairs(gameObjects) do
+                        if obj and obj.Parent then
+                            remainingCoins = remainingCoins + 1
+                        end
+                    end
+                    
+                    if remainingCoins <= 0 and gameActive then
+                        ModernGUILibrary.createNotification("All coins collected! Spawning new set... ðŸŽ‰", "info")
+                        wait(1)
+                        spawnCoins() -- Spawn new set of coins
+                    end
+                end)
+                
+                connection:Disconnect()
+            end
+        end)
+    end
+    
+    ModernGUILibrary.createNotification("10 coins spawned! Start collecting! ðŸª™", "info")
+end
+
+-- Start the coin collecting game
+local function startGame()
+    if gameActive then return end
+    
+    gameActive = true
+    
+    -- Store original position
+    if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+        originalPosition = player.Character.HumanoidRootPart.CFrame
+    end
+    
+    -- Create game area
+    createGameArea()
+    
+    -- Teleport player to game area with smooth transition
+    if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+        local teleportCFrame = CFrame.new(gameArea.Position + Vector3.new(0, 10, 0))
+        player.Character.HumanoidRootPart.CFrame = teleportCFrame
+    end
+    
+    wait(0.5)
+    
+    -- Start spawning coins
+    spawnCoins()
+    
+    ModernGUILibrary.createNotification("ðŸŽ® Coin collecting game started! Collect all coins!", "success")
+end
+
+-- Stop the coin collecting game
+local function stopGame()
+    if not gameActive then return end
+    
+    gameActive = false
+    
+    -- Clear all game objects
+    for _, obj in pairs(gameObjects) do
+        if obj and obj.Parent then
+            obj:Destroy()
+        end
+    end
+    gameObjects = {}
+    
+    -- Remove game area
+    if gameArea then
+        gameArea:Destroy()
+        gameArea = nil
+    end
+    
+    -- Teleport player back with smooth transition
+    if originalPosition and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+        player.Character.HumanoidRootPart.CFrame = originalPosition
+    end
+    
+    ModernGUILibrary.createNotification("ðŸ›‘ Coin collecting game stopped!", "warning")
+end
+
+
+loadCurrency()
+
+-- Create currency label with proper reference
+local spawnerHeader, labelElement = spawnerTab.AddLabel(
     "SpawnerHeader",
+    "ZYSUME CURRENCY: " .. string.format("%.1f", currentCurrency),
+    nil,
+    {
+        font = Enum.Font.GothamBold,
+        hasBackground = true,
+        textSize = 16,
+        backgroundColor = Color3.fromRGB(255, 0, 0),
+        textAlignment = Enum.TextXAlignment.Center,
+        backgroundTransparency = 0.1,
+        textColor = Color3.fromRGB(255, 255, 255)
+    }
+)
+
+-- Set the global currency label reference
+currencyLabel = labelElement
+
+-- Coin Collecting Game Checkbox
+local spawnPetCheckbox, spawnPetElement = spawnerTab.AddCheckbox(
+    "SpawnPet",
+    "Play Minigames [ Earn Currency ]",
+    nil,
+    function(checked)
+        if checked then
+            startGame()
+        else
+            stopGame()
+        end
+    end
+)
+
+
+local spawnerHeader2, spawnerHeaderMethods2 = spawnerTab.AddLabel(
+    "SpawnerHeader2",
     "PET SPAWNER",
     nil,
     {
@@ -230,14 +552,14 @@ local wingRotationSystem = {
         currentZ = 1,      -- mulai dari 1
         minZ = 1,          -- batas minimum
         maxZ = 150,        -- batas maksimum
-        direction = 1,     -- 1 untuk naik (1→150), -1 untuk turun (150→1)
+        direction = 1,     -- 1 untuk naik (1â†’150), -1 untuk turun (150â†’1)
         speed = 33          -- kecepatan rotasi per frame
     },
     RightWing = {
         currentZ = -150,   -- mulai dari -150
         minZ = -150,       -- batas minimum -150
         maxZ = 1,          -- batas maksimum 1
-        direction = 1,     -- 1 untuk naik (-150→1)
+        direction = 1,     -- 1 untuk naik (-150â†’1)
         speed = 33         -- kecepatan rotasi per frame
     }
 }
@@ -252,7 +574,7 @@ local dragonflyRotationSystem = {
     initialZ = -50,        -- menyimpan Z rotation awal
     minZ = -150,           -- batas minimum -150
     maxZ = -50,            -- batas maksimum -50
-    direction = -1,        -- -1 untuk turun (-50→-150), 1 untuk naik (-150→-50)
+    direction = -1,        -- -1 untuk turun (-50â†’-150), 1 untuk naik (-150â†’-50)
     speed = 25,            -- kecepatan rotasi per frame
     initialized = true     -- langsung set true karena sudah ada nilai default
 }
@@ -285,10 +607,10 @@ local function updateDragonflyRotation()
     -- Check batas dan ubah arah
     if dragonflyRotationSystem.currentZ <= dragonflyRotationSystem.minZ then -- <= karena minZ adalah -150
         dragonflyRotationSystem.currentZ = dragonflyRotationSystem.minZ
-        dragonflyRotationSystem.direction = 1 -- balik arah ke atas (-150 → -50)
+        dragonflyRotationSystem.direction = 1 -- balik arah ke atas (-150 â†’ -50)
     elseif dragonflyRotationSystem.currentZ >= dragonflyRotationSystem.maxZ then -- >= karena maxZ adalah -50
         dragonflyRotationSystem.currentZ = dragonflyRotationSystem.maxZ
-        dragonflyRotationSystem.direction = -1 -- balik arah ke bawah (-50 → -150)
+        dragonflyRotationSystem.direction = -1 -- balik arah ke bawah (-50 â†’ -150)
     end
     
     return dragonflyRotationSystem.currentZ
@@ -452,7 +774,7 @@ local customSettings = {
     ["Dragonfly"] = {
         offset = CFrame.new(0.3, -0.8, -0.1),
         rotation = CFrame.Angles(0, math.rad(90), 0),
-        rotation2 = CFrame.Angles(0, 0, 0)
+        rotation2 = CFrame.Angles(math.rad(90), 0, 0)
     },
     ["Red Dragon"] = {
         offset = CFrame.new(3.3, -1.3, -0.1),
@@ -536,10 +858,12 @@ local function getAllPets()
     return #pets > 0 and pets or {"No pets found"}
 end
 
+
 -- Variables to store input values
 local selectedPet = ""
 local petWeight = "1.0"
 local petAge = "Baby"
+local kelipatanWeight = 2
 
 -- Pet Dropdown
 local petDropdown, petDropdownMethods = spawnerTab.AddDropdown(
@@ -559,6 +883,24 @@ local petDropdown, petDropdownMethods = spawnerTab.AddDropdown(
     end
 )
 petDropdown.ZIndex = 200
+
+local weightMultiplierInput, weightMultiplierInputMethods = spawnerTab.AddTextInput(
+    "WeightMultiplier",
+    "Pet Weight Multiplier:",
+    "1.5",
+    nil,
+    function(value)
+        local multiplier = tonumber(value)
+        if multiplier and multiplier > 0 then
+            kelipatanWeight = multiplier
+            ModernGUILibrary.createNotification("Weight multiplier set to: " .. kelipatanWeight, "info")
+        else
+            ModernGUILibrary.createNotification("Invalid multiplier value! Using default: 2", "error")
+            kelipatanWeight = 2
+        end
+    end
+)
+weightMultiplierInput.ZIndex = 2
 
 -- Pet Weight Input
 local weightInput, weightInputMethods = spawnerTab.AddTextInput(
@@ -586,48 +928,71 @@ local ageInput, ageInputMethods = spawnerTab.AddTextInput(
 )
 ageInput.ZIndex = 2
 
--- Spawn Pet Checkbox
+-- Tambahkan variabel ini di bagian atas setelah currentCurrency = 0
+local spawnPetCurrency = 0.2
+
+-- Ganti bagian Spawn Pet Checkbox yang lama dengan kode ini:
 local spawnPetCheckbox, spawnPetElement = spawnerTab.AddCheckbox(
     "SpawnPet",
     "Spawn the Pet",
     nil,
     function(checked)
         if checked then
+            -- Cek apakah currency cukup
+            if currentCurrency < spawnPetCurrency then
+                ModernGUILibrary.createNotification("Insufficient currency! Need " .. spawnPetCurrency .. " but only have " .. string.format("%.1f", currentCurrency), "error")
+                -- Reset checkbox karena tidak cukup currency
+                spawnPetElement:SetValue(false)
+                return
+            end
+            
             selectedPet = petDropdownMethods.getValue() or ""
             petWeight = weightInputMethods.getValue() or "1.0"
             petAge = ageInputMethods.getValue() or "Baby"
+            local scaleFactor = (tonumber(petWeight) or 1) * kelipatanWeight
             
             if selectedPet == "" or selectedPet == "No pets found" then
                 ModernGUILibrary.createNotification("Please select a valid pet first!", "error")
+                spawnPetElement:SetValue(false)
                 return
             end
 
             local petModel = PetAssets:FindFirstChild(selectedPet)
             if petModel then
-                local clonedPet = petModel:Clone()
-                local fakeTool = Instance.new("Tool")
+                -- Kurangi currency sebelum spawn pet
+                currentCurrency = currentCurrency - spawnPetCurrency
+                updateCurrencyLabel()
+                saveCurrency()
                 
+                local clonedPet = petModel:Clone()
+                clonedPet:ScaleTo(scaleFactor)
+                
+                local fakeTool = Instance.new("Tool")
                 fakeTool.Name = selectedPet .. " [ " .. petWeight .. " KG ] [ " .. petAge .. " Age ]"
                 fakeTool.RequiresHandle = true
                 fakeTool:SetAttribute("PetDuped", true)
 
                 local handle = Instance.new("Part")
                 handle.Name = "Handle"
-                handle.Size = Vector3.new(0.5, 0.5, 0.5)
+                handle.Size = Vector3.new(0.2, 0.2, 0.2)
                 handle.Transparency = 1
                 handle.CanCollide = false
+                handle.Massless = true
+                handle.CanTouch = false
                 handle.Parent = fakeTool
 
                 if clonedPet.PrimaryPart then
                     local offset, rotation, rotation2 = getPetSettings(selectedPet)
+                    local scaled_offset = CFrame.new(offset.Position * scaleFactor)
                     
-                    clonedPet.PrimaryPart.CFrame = handle.CFrame * offset * rotation * rotation2
                     clonedPet.Parent = fakeTool
 
                     for _, part in pairs(clonedPet:GetDescendants()) do
                         if part:IsA("BasePart") then
                             part.Anchored = false
                             part.CanCollide = false
+                            part.Massless = true
+                            part.CanTouch = false
                         end
                     end
 
@@ -635,7 +1000,7 @@ local spawnPetCheckbox, spawnPetElement = spawnerTab.AddCheckbox(
                     weld.Part0 = handle
                     weld.Part1 = clonedPet.PrimaryPart
                     weld.C0 = CFrame.new()
-                    weld.C1 = offset * rotation * rotation2
+                    weld.C1 = scaled_offset * rotation * rotation2
                     weld.Parent = handle
 
                     fakeTool.Parent = backpack
@@ -643,11 +1008,13 @@ local spawnPetCheckbox, spawnPetElement = spawnerTab.AddCheckbox(
                     if humanoid then
                         humanoid:EquipTool(fakeTool)
                         
-                        -- Start wing animation system jika pet adalah Queen Bee atau Dragonfly
                         if selectedPet == "Queen Bee" or selectedPet == "Dragonfly" or selectedPet == "Purple Dragonfly" then
                             startWingRotationSystem()
                             ModernGUILibrary.createNotification("Wing animation started for: " .. selectedPet, "success")
                         end
+                        
+                        -- Notifikasi sukses dengan info currency yang dipotong
+                        ModernGUILibrary.createNotification("Pet spawned! -" .. spawnPetCurrency .. " currency (Remaining: " .. string.format("%.1f", currentCurrency) .. ")", "success")
                         
                         if customSettings[selectedPet] then
                             ModernGUILibrary.createNotification("Pet duplicated with custom settings: " .. selectedPet .. " [PetDuped: ✓]", "success")
@@ -671,6 +1038,42 @@ local spawnPetCheckbox, spawnPetElement = spawnerTab.AddCheckbox(
         end
     end
 )
+
+-- Fungsi untuk memastikan properti fisika tetap sesuai
+local function ensureNoCollision()
+    while true do
+        -- Periksa pet di backpack
+        for _, tool in pairs(backpack:GetChildren()) do
+            if tool:IsA("Tool") and tool:GetAttribute("PetDuped") then
+                for _, part in pairs(tool:GetDescendants()) do
+                    if part:IsA("BasePart") then
+                        part.CanCollide = false
+                        part.Anchored = false
+                        part.Massless = true
+                        part.CanTouch = false
+                    end
+                end
+            end
+        end
+        -- Periksa pet di karakter
+        for _, tool in pairs(char:GetChildren()) do
+            if tool:IsA("Tool") and tool:GetAttribute("PetDuped") then
+                for _, part in pairs(tool:GetDescendants()) do
+                    if part:IsA("BasePart") then
+                        part.CanCollide = false
+                        part.Anchored = false
+                        part.Massless = true
+                        part.CanTouch = false
+                    end
+                end
+            end
+        end
+        wait(0.5)  -- Periksa setiap 0.5 detik
+    end
+end
+
+-- Jalankan fungsi di latar belakang
+spawn(ensureNoCollision)
 spawnPetCheckbox.ZIndex = 2
 
 local petPlacerCheckbox, petPlacerElement = spawnerTab.AddCheckbox(
@@ -2042,6 +2445,37 @@ local updateLabel2, updateLabel2s = updateTab.AddLabel(
         textColor = Color3.fromRGB(255, 255, 255)
     }
 )
+
+spawn(function()
+    while true do
+        if currencyLabel then
+            updateCurrencyLabel()
+        end
+        wait(0.5) -- Backup update every 0.5 seconds
+    end
+end)
+
+-- Auto-save currency system
+spawn(function()
+    while true do
+        saveCurrency()
+        wait(3) -- Save every 3 seconds
+    end
+end)
+
+-- Character respawn handling
+player.CharacterAdded:Connect(function(character)
+    if gameActive then
+        character:WaitForChild("HumanoidRootPart")
+        wait(1)
+        -- Respawn in game area if game is active
+        if gameArea and character:FindFirstChild("HumanoidRootPart") then
+            character.HumanoidRootPart.CFrame = CFrame.new(gameArea.Position + Vector3.new(0, 10, 0))
+        end
+    end
+end)
+
+updateCurrencyLabel() -- Initial update
 
 -- Set title for the GUI
 if PlayerGui:FindFirstChild("ModernGUI") and 
