@@ -17,6 +17,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local player = Players.LocalPlayer
 local workspace = game:GetService("Workspace")
 local player = Players.LocalPlayer
+local TweenService = game:GetService("TweenService")
 
 
 local function isDeltaExecutor()
