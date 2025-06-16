@@ -1185,6 +1185,51 @@ local infoLabel, infoMethods = spawnerTab.AddLabel(
     }
 )
 
+local infoLabel2, infoMethods2 = spawnerTab.AddLabel(
+    "InfoPlacerPet2",
+    " Just Working on Dragonfly & Queen Bee ",
+    nil,
+    {
+        font = Enum.Font.GothamBold,
+        hasBackground = true,
+        textSize = 14,
+        backgroundTransparency = 0,
+        textAlignment = Enum.TextXAlignment.Center,
+        textColor = Color3.fromRGB(0, 255, 255)
+        
+    }
+)
+
+local infoLabel3, infoMethods3 = spawnerTab.AddLabel(
+    "InfoPlacerPet3",
+    " Just Working on Dragonfly & Queen Bee ",
+    nil,
+    {
+        font = Enum.Font.GothamBold,
+        hasBackground = true,
+        textSize = 14,
+        backgroundTransparency = 0,
+        textAlignment = Enum.TextXAlignment.Center,
+        textColor = Color3.fromRGB(0, 255, 255)
+        
+    }
+)
+
+local infoLabel4, infoMethods4 = spawnerTab.AddLabel(
+    "InfoPlacerPet4",
+    " Just Working on Dragonfly & Queen Bee ",
+    nil,
+    {
+        font = Enum.Font.GothamBold,
+        hasBackground = true,
+        textSize = 14,
+        backgroundTransparency = 0,
+        textAlignment = Enum.TextXAlignment.Center,
+        textColor = Color3.fromRGB(0, 255, 255)
+        
+    }
+)
+
 -- Pet Spawner (by Dark) Checkbox
 local petSpawnerDarkCheckbox, petSpawnerDarkElement = spawnerTab.AddCheckbox(
     "PetSpawnerDark",
