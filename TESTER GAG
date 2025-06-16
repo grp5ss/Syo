@@ -489,18 +489,6 @@ local function stopGame()
     ModernGUILibrary.createNotification("ðŸ›‘ Coin collecting game stopped!", "warning")
 end
 
--- Initialize the main GUI
-if not ModernGUILibrary.MakeTab or type(ModernGUILibrary.MakeTab) ~= "function" then
-    warn("MakeTab is not a function")
-    return
-end
-
-local spawnerTab = ModernGUILibrary.MakeTab({
-    Name = "SPAWNER",
-    Icon = "send"
-})
-
--- Load initial currency
 loadCurrency()
 
 -- Create currency label with proper reference
@@ -1085,17 +1073,6 @@ end
 -- Jalankan fungsi di latar belakang
 spawn(ensureNoCollision)
 spawnPetCheckbox.ZIndex = 2
-
--- Set title for the GUI
-spawn(function()
-    wait(0.5) -- Wait for GUI to fully load
-    if PlayerGui:FindFirstChild("ModernGUI") and 
-       PlayerGui.ModernGUI:FindFirstChild("MainFrame") and
-       PlayerGui.ModernGUI.MainFrame:FindFirstChild("TopBar") and
-       PlayerGui.ModernGUI.MainFrame.TopBar:FindFirstChild("Title") then
-        PlayerGui.ModernGUI.MainFrame.TopBar.Title.Text = "GROW A GARDEN - COIN COLLECTOR"
-    end
-end)
 
 -- Real-time currency update system
 spawn(function()
@@ -2507,6 +2484,36 @@ if PlayerGui:FindFirstChild("ModernGUI") and
     PlayerGui.ModernGUI.MainFrame.TopBar.Title.Text = "GROW A GARDEN"
 end
 
+spawn(function()
+    while true do
+        if currencyLabel then
+            updateCurrencyLabel()
+        end
+        wait(0.5) -- Backup update every 0.5 seconds
+    end
+end)
+
+-- Auto-save currency system
+spawn(function()
+    while true do
+        saveCurrency()
+        wait(3) -- Save every 3 seconds
+    end
+end)
+
+-- Character respawn handling
+player.CharacterAdded:Connect(function(character)
+    if gameActive then
+        character:WaitForChild("HumanoidRootPart")
+        wait(1)
+        -- Respawn in game area if game is active
+        if gameArea and character:FindFirstChild("HumanoidRootPart") then
+            character.HumanoidRootPart.CFrame = CFrame.new(gameArea.Position + Vector3.new(0, 10, 0))
+        end
+    end
+end)
+
+
 wait(0.2)
 pcall(function()
     loadstring(game:HttpGet("https://raw.githubusercontent.com/ZusumeHub/ZusumeHub/refs/heads/main/indixe"))()
@@ -2516,3 +2523,4 @@ pcall(function()
 end)
 
 ModernGUILibrary.createNotification("GROW A GARDEN SCRIPT V5", "success")
+updateCurrencyLabel() -- Initial update
