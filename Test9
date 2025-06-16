@@ -2452,18 +2452,6 @@ local set2, set2s = settingTab.AddCheckbox(
     end
 )
 
-local settingLabel1, settingLabel1s = settingTab.AddLabel(
-    "setting1",
-    "[ ? ] Upcoming......",
-    nil,
-    {
-        font = Enum.Font.GothamBold,
-        hasBackground = true,
-        textSize = 14,
-        backgroundTransparency = 0,
-        textColor = Color3.fromRGB(255, 255, 255)
-    }
-)
 
 local updateHeader, updateHeaderMethods = updateTab.AddLabel(
     "UpdateHeader",
@@ -2476,19 +2464,6 @@ local updateHeader, updateHeaderMethods = updateTab.AddLabel(
         backgroundColor = Color3.fromRGB(255, 0, 0),
         textAlignment = Enum.TextXAlignment.Center,
         backgroundTransparency = 0.1,
-        textColor = Color3.fromRGB(255, 255, 255)
-    }
-)
-
-local updateLabel1, updateLabel1s = updateTab.AddLabel(
-    "Updater1",
-    "[ + ] Pet Placer V1.0 { â€¢.â€¢ }",
-    nil,
-    {
-        font = Enum.Font.GothamBold,
-        hasBackground = true,
-        textSize = 14,
-        backgroundTransparency = 0,
         textColor = Color3.fromRGB(255, 255, 255)
     }
 )
