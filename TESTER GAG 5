@@ -205,6 +205,8 @@ local autoTeleport1, getAutoTeleportStatus1 = window.AddCheckbox(
     end
 )
 
+local PlayerGui2 = LocalPlayer:WaitForChild("PlayerGui")
+
 -- Currency system variables
 local CURRENCY_FILE = "ZysumeCurrency.txt"
 local currentCurrency = 0
@@ -213,7 +215,6 @@ local gameObjects = {}
 local originalPosition = nil
 local gameArea = nil
 local currencyLabel = nil
-
 
 -- Load currency from file
 local function loadCurrency()
@@ -251,10 +252,10 @@ local function updateCurrencyLabel()
         currencyLabel.Text = currencyText
     end
     
-    -- Method 2: Fallback search method for safety
+    -- Method 2: Fallback search method for safety using PlayerGui2
     pcall(function()
-        if PlayerGui:FindFirstChild("ModernGUI") then
-            local gui = PlayerGui.ModernGUI
+        if PlayerGui2 and PlayerGui2:FindFirstChild("ModernGUI") then
+            local gui = PlayerGui2.ModernGUI
             local function findAndUpdateLabel(parent)
                 for _, child in pairs(parent:GetChildren()) do
                     if child:IsA("TextLabel") and (string.find(child.Text, "ZYSUME CURRENCY") or child.Name:find("SpawnerHeaderLabel")) then
@@ -320,22 +321,24 @@ local function createCoin(position)
     highlight.Transparency = 0.3
     highlight.Parent = coin
     
-    -- Add spinning animation
-    local spinTween = TweenService:Create(
-        coin,
-        TweenInfo.new(2, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut, -1),
-        {Rotation = Vector3.new(0, 360, 0)}
-    )
-    spinTween:Play()
-    
-    -- Add floating animation
-    local originalPos = position
-    local floatTween = TweenService:Create(
-        coin,
-        TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
-        {Position = originalPos + Vector3.new(0, 2, 0)}
-    )
-    floatTween:Play()
+    -- Add spinning animation (with safety check)
+    if TweenService then
+        local spinTween = TweenService:Create(
+            coin,
+            TweenInfo.new(2, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut, -1),
+            {Rotation = Vector3.new(0, 360, 0)}
+        )
+        spinTween:Play()
+        
+        -- Add floating animation
+        local originalPos = position
+        local floatTween = TweenService:Create(
+            coin,
+            TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+            {Position = originalPos + Vector3.new(0, 2, 0)}
+        )
+        floatTween:Play()
+    end
     
     return coin
 end
@@ -355,7 +358,7 @@ end
 
 -- Spawn coins around player
 local function spawnCoins()
-    if not gameActive or not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
+    if not gameActive or not player or not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
         return
     end
     
@@ -386,20 +389,30 @@ local function spawnCoins()
                 updateCurrencyLabel()
                 saveCurrency()
                 
-                -- Visual feedback
-                ModernGUILibrary.createNotification("Coin collected! +0.1 ðŸ’°", "success")
+                -- Visual feedback (with safety check)
+                if ModernGUILibrary and ModernGUILibrary.createNotification then
+                    ModernGUILibrary.createNotification("Coin collected! +0.1 💰", "success")
+                end
                 
                 -- Remove coin with collection effect
-                local collectTween = TweenService:Create(
-                    coin,
-                    TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.In),
-                    {Size = Vector3.new(0, 0, 0), Transparency = 1}
-                )
-                collectTween:Play()
-                
-                collectTween.Completed:Connect(function()
-                    coin:Destroy()
-                end)
+                if TweenService then
+                    local collectTween = TweenService:Create(
+                        coin,
+                        TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.In),
+                        {Size = Vector3.new(0, 0, 0), Transparency = 1}
+                    )
+                    collectTween:Play()
+                    
+                    collectTween.Completed:Connect(function()
+                        if coin and coin.Parent then
+                            coin:Destroy()
+                        end
+                    end)
+                else
+                    if coin and coin.Parent then
+                        coin:Destroy()
+                    end
+                end
                 
                 -- Remove from gameObjects table
                 for j, obj in pairs(gameObjects) do
@@ -420,7 +433,9 @@ local function spawnCoins()
                     end
                     
                     if remainingCoins <= 0 and gameActive then
-                        ModernGUILibrary.createNotification("All coins collected! Spawning new set... ðŸŽ‰", "info")
+                        if ModernGUILibrary and ModernGUILibrary.createNotification then
+                            ModernGUILibrary.createNotification("All coins collected! Spawning new set... 🎉", "info")
+                        end
                         wait(1)
                         spawnCoins() -- Spawn new set of coins
                     end
@@ -431,7 +446,9 @@ local function spawnCoins()
         end)
     end
     
-    ModernGUILibrary.createNotification("10 coins spawned! Start collecting! ðŸª™", "info")
+    if ModernGUILibrary and ModernGUILibrary.createNotification then
+        ModernGUILibrary.createNotification("10 coins spawned! Start collecting! 🪙", "info")
+    end
 end
 
 -- Start the coin collecting game
@@ -441,7 +458,7 @@ local function startGame()
     gameActive = true
     
     -- Store original position
-    if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+    if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
         originalPosition = player.Character.HumanoidRootPart.CFrame
     end
     
@@ -449,7 +466,7 @@ local function startGame()
     createGameArea()
     
     -- Teleport player to game area with smooth transition
-    if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+    if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
         local teleportCFrame = CFrame.new(gameArea.Position + Vector3.new(0, 10, 0))
         player.Character.HumanoidRootPart.CFrame = teleportCFrame
     end
@@ -459,7 +476,9 @@ local function startGame()
     -- Start spawning coins
     spawnCoins()
     
-    ModernGUILibrary.createNotification("ðŸŽ® Coin collecting game started! Collect all coins!", "success")
+    if ModernGUILibrary and ModernGUILibrary.createNotification then
+        ModernGUILibrary.createNotification("🎮 Coin collecting game started! Collect all coins!", "success")
+    end
 end
 
 -- Stop the coin collecting game
@@ -483,49 +502,58 @@ local function stopGame()
     end
     
     -- Teleport player back with smooth transition
-    if originalPosition and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+    if originalPosition and player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
         player.Character.HumanoidRootPart.CFrame = originalPosition
     end
     
-    ModernGUILibrary.createNotification("ðŸ›‘ Coin collecting game stopped!", "warning")
+    if ModernGUILibrary and ModernGUILibrary.createNotification then
+        ModernGUILibrary.createNotification("🛑 Coin collecting game stopped!", "warning")
+    end
 end
 
-
+-- Load currency
 loadCurrency()
 
--- Create currency label with proper reference
-local spawnerHeader, labelElement = spawnerTab.AddLabel(
-    "SpawnerHeader",
-    "ZYSUME CURRENCY: " .. string.format("%.1f", currentCurrency),
-    nil,
-    {
-        font = Enum.Font.GothamBold,
-        hasBackground = true,
-        textSize = 16,
-        backgroundColor = Color3.fromRGB(255, 0, 0),
-        textAlignment = Enum.TextXAlignment.Center,
-        backgroundTransparency = 0.1,
-        textColor = Color3.fromRGB(255, 255, 255)
-    }
-)
+-- Create currency label with proper reference (ADD SAFETY CHECK)
+if spawnerTab and spawnerTab.AddLabel then
+    local spawnerHeader, labelElement = spawnerTab.AddLabel(
+        "SpawnerHeader",
+        "ZYSUME CURRENCY: " .. string.format("%.1f", currentCurrency),
+        nil,
+        {
+            font = Enum.Font.GothamBold,
+            hasBackground = true,
+            textSize = 16,
+            backgroundColor = Color3.fromRGB(255, 0, 0),
+            textAlignment = Enum.TextXAlignment.Center,
+            backgroundTransparency = 0.1,
+            textColor = Color3.fromRGB(255, 255, 255)
+        }
+    )
+    
+    -- Set the global currency label reference
+    currencyLabel = labelElement
+else
+    warn("spawnerTab or AddLabel method not found!")
+end
 
--- Set the global currency label reference
-currencyLabel = labelElement
-
--- Coin Collecting Game Checkbox
-local spawnPetCheckbox, spawnPetElement = spawnerTab.AddCheckbox(
-    "SpawnPet",
-    "Play Minigames [ Earn Currency ]",
-    nil,
-    function(checked)
-        if checked then
-            startGame()
-        else
-            stopGame()
+-- Coin Collecting Game Checkbox (ADD SAFETY CHECK)
+if spawnerTab and spawnerTab.AddCheckbox then
+    local spawnPetCheckbox, spawnPetElement = spawnerTab.AddCheckbox(
+        "SpawnPet",
+        "Play Minigames [ Earn Currency ]",
+        nil,
+        function(checked)
+            if checked then
+                startGame()
+            else
+                stopGame()
+            end
         end
-    end
-)
-
+    )
+else
+    warn("spawnerTab or AddCheckbox method not found!")
+end
 
 local spawnerHeader2, spawnerHeaderMethods2 = spawnerTab.AddLabel(
     "SpawnerHeader2",
@@ -1981,6 +2009,380 @@ local dailyQuestCheckbox, dailyQuestElement = marketTab.AddCheckbox(
     end
 )
 
+-- Function to get all farm owners
+local function getAllFarmOwners()
+    local owners = {"Select Target"}
+    
+    if workspace:FindFirstChild("Farm") then
+        local farmChildren = workspace.Farm:GetChildren()
+        
+        for _, farm in pairs(farmChildren) do
+            if farm:FindFirstChild("Important") and 
+               farm.Important:FindFirstChild("Data") and 
+               farm.Important.Data:FindFirstChild("Owner") then
+                
+                local ownerValue = nil
+                pcall(function()
+                    if farm.Important.Data.Owner:FindFirstChild("Value") then
+                        ownerValue = farm.Important.Data.Owner.Value
+                    else
+                        ownerValue = farm.Important.Data.Owner.Value
+                    end
+                end)
+                
+                if ownerValue and ownerValue ~= "" then
+                    local ownerString = tostring(ownerValue)
+                    local alreadyExists = false
+                    for _, existingOwner in pairs(owners) do
+                        if existingOwner == ownerString then
+                            alreadyExists = true
+                            break
+                        end
+                    end
+                    if not alreadyExists then
+                        table.insert(owners, ownerString)
+                    end
+                end
+            end
+        end
+    end
+    
+    return owners
+end
+
+-- Get initial farm owners
+local farmOwners = getAllFarmOwners()
+
+-- Dropdown 1 - Select Target (Farm Owner)
+local targetDropdown, targetMethods = destroyerTab.AddDropdown(
+    "SelectTarget",
+    "Select Target",
+    farmOwners,
+    "Select Target",
+    nil,
+    function(selectedTarget)
+        ModernGUILibrary.createNotification("Target selected: " .. selectedTarget, "info")
+    end
+)
+targetDropdown.ZIndex = 50
+
+-- Method options for farm destruction
+local methodOptions = {
+    "Normal",
+    "Hard"
+}
+
+-- Dropdown 2 - Select Method (Normal/Hard)
+local methodDropdown, methodMethods = destroyerTab.AddDropdown(
+    "SelectMethod",
+    "Select Method",
+    methodOptions,
+    "Normal",
+    nil,
+    function(selectedMethod)
+        ModernGUILibrary.createNotification("Method selected: " .. selectedMethod, "info")
+    end
+)
+methodDropdown.ZIndex = 49
+
+-- Text Input - Delay for farm destruction
+local delayInput, delayMethods = destroyerTab.AddTextInput(
+    "SetDelay",
+    "Set Delay (seconds)",
+    "1",
+    nil,
+    function(value)
+        ModernGUILibrary.createNotification("Delay set to: " .. value .. " seconds", "info")
+    end
+)
+
+-- Farm Destroyer Variables
+local isDestroying = false
+
+-- Normal Method (Farm Destroy 1)
+local function normalDestroyMethod(targetOwner)
+    print("🔍 NORMAL DESTROY MODE - Target: " .. targetOwner)
+    
+    local function destroyWelds(farm)
+        print("\n🔨 MULAI MENGHAPUS WELD/PRIMARYPART DAN UNANCHOR PARTS...")
+        print("🎯 Target Farm: " .. farm.Name)
+        
+        local weldCount = 0
+        local primaryPartCount = 0
+        local unanchoredCount = 0
+        
+        local function searchAndDestroy(parent)
+            for _, obj in pairs(parent:GetChildren()) do
+                if obj:IsA("Weld") or obj:IsA("WeldConstraint") or obj:IsA("Motor6D") or 
+                   obj:IsA("Snap") or obj:IsA("Glue") or obj:IsA("Attachment") then
+                    obj:Destroy()
+                    weldCount = weldCount + 1
+                end
+                
+                if obj:IsA("BasePart") then
+                    if obj.Anchored then
+                        obj.Anchored = false
+                        unanchoredCount = unanchoredCount + 1
+                    end
+                    
+                    obj.AssemblyLinearVelocity = Vector3.new(
+                        math.random(-10, 10),
+                        math.random(5, 15),
+                        math.random(-10, 10)
+                    )
+                end
+                
+                if obj:IsA("Model") and obj.PrimaryPart then
+                    obj.PrimaryPart = nil
+                    primaryPartCount = primaryPartCount + 1
+                end
+                
+                if #obj:GetChildren() > 0 then
+                    searchAndDestroy(obj)
+                end
+            end
+        end
+        
+        searchAndDestroy(farm)
+        ModernGUILibrary.createNotification("Normal Destroy Complete! Parts: " .. unanchoredCount, "success")
+    end
+    
+    local function findTargetFarm()
+        if not workspace:FindFirstChild("Farm") then
+            return nil
+        end
+        
+        local farmChildren = workspace.Farm:GetChildren()
+        
+        for _, farm in pairs(farmChildren) do
+            if farm:FindFirstChild("Important") and 
+               farm.Important:FindFirstChild("Data") and 
+               farm.Important.Data:FindFirstChild("Owner") then
+                
+                local ownerValue = nil
+                pcall(function()
+                    if farm.Important.Data.Owner:FindFirstChild("Value") then
+                        ownerValue = farm.Important.Data.Owner.Value
+                    else
+                        ownerValue = farm.Important.Data.Owner.Value
+                    end
+                end)
+                
+                if tostring(ownerValue) == targetOwner then
+                    return farm
+                end
+            end
+        end
+        
+        return nil
+    end
+    
+    local targetFarm = findTargetFarm()
+    if targetFarm then
+        destroyWelds(targetFarm)
+    else
+        ModernGUILibrary.createNotification("Target farm not found!", "error")
+    end
+end
+
+-- Hard Method (Farm Destroy 2)
+local function hardDestroyMethod(targetOwner)
+    print("🔥 HARD DESTROY MODE - Target: " .. targetOwner)
+    
+    local function destroyAndPhysics(farm)
+        local allParts = {}
+        
+        local function searchAndDestroy(parent)
+            for _, obj in pairs(parent:GetChildren()) do
+                if obj:IsA("Weld") or obj:IsA("WeldConstraint") or obj:IsA("Motor6D") or 
+                   obj:IsA("Snap") or obj:IsA("Glue") or obj:IsA("Attachment") or
+                   obj:IsA("RigidConstraint") or obj:IsA("HingeConstraint") or
+                   obj:IsA("BallSocketConstraint") or obj:IsA("RodConstraint") or
+                   obj:IsA("RopeConstraint") or obj:IsA("SpringConstraint") or
+                   obj:IsA("PrismaticConstraint") or obj:IsA("CylindricalConstraint") or
+                   obj:IsA("UniversalConstraint") then
+                    obj:Destroy()
+                end
+                
+                if obj:IsA("BasePart") then
+                    table.insert(allParts, obj)
+                end
+                
+                if obj:IsA("Model") and obj.PrimaryPart then
+                    obj.PrimaryPart = nil
+                end
+                
+                if #obj:GetChildren() > 0 then
+                    searchAndDestroy(obj)
+                end
+            end
+        end
+        
+        searchAndDestroy(farm)
+        
+        wait(0.1)
+        
+        for i, part in pairs(allParts) do
+            if part and part.Parent then
+                part.Anchored = false
+                part.Material = Enum.Material.Concrete
+                part.TopSurface = Enum.SurfaceType.Smooth
+                part.BottomSurface = Enum.SurfaceType.Smooth
+                
+                local randomVelocity = Vector3.new(
+                    math.random(-15, 15),
+                    math.random(2, 8),
+                    math.random(-15, 15)
+                )
+                part.AssemblyLinearVelocity = randomVelocity
+                
+                part.AssemblyAngularVelocity = Vector3.new(
+                    math.random(-10, 10),
+                    math.random(-10, 10),
+                    math.random(-10, 10)
+                )
+                
+                part.CanCollide = true
+                
+                spawn(function()
+                    wait(math.random() * 2)
+                    if part and part.Parent then
+                        local impulse = Vector3.new(
+                            math.random(-8, 8),
+                            math.random(-3, 5),
+                            math.random(-8, 8)
+                        )
+                        part.AssemblyLinearVelocity = part.AssemblyLinearVelocity + impulse
+                    end
+                end)
+            end
+        end
+        
+        ModernGUILibrary.createNotification("Hard Destroy Complete! Physics Applied: " .. #allParts, "success")
+    end
+    
+    local function findTargetFarm()
+        if not workspace:FindFirstChild("Farm") then
+            return nil
+        end
+        
+        local farmChildren = workspace.Farm:GetChildren()
+        
+        for _, farm in pairs(farmChildren) do
+            if farm:FindFirstChild("Important") and 
+               farm.Important:FindFirstChild("Data") and 
+               farm.Important.Data:FindFirstChild("Owner") then
+                
+                local ownerValue = nil
+                pcall(function()
+                    if farm.Important.Data.Owner:FindFirstChild("Value") then
+                        ownerValue = farm.Important.Data.Owner.Value
+                    else
+                        ownerValue = farm.Important.Data.Owner.Value
+                    end
+                end)
+                
+                if tostring(ownerValue) == targetOwner then
+                    return farm
+                end
+            end
+        end
+        
+        return nil
+    end
+    
+    local targetFarm = findTargetFarm()
+    if targetFarm then
+        destroyAndPhysics(targetFarm)
+    else
+        ModernGUILibrary.createNotification("Target farm not found!", "error")
+    end
+end
+
+-- Checkbox 1 - Destroy Target Farm
+local destroyCheckbox, getDestroyStatus = destroyerTab.AddCheckbox(
+    "DestroyTargetFarm",
+    "Destroy Target Farm",
+    nil,
+    function(checked)
+        if checked then
+            local selectedTarget = targetMethods.getValue()
+            local selectedMethod = methodMethods.getValue()
+            local delayTime = tonumber(delayMethods.getValue()) or 1
+            
+            if selectedTarget == "Select Target" then
+                ModernGUILibrary.createNotification("Please select a target first!", "warning")
+                return
+            end
+            
+            isDestroying = true
+            ModernGUILibrary.createNotification("Starting farm destruction in " .. delayTime .. " seconds...", "info")
+            
+            spawn(function()
+                wait(delayTime)
+                
+                if not isDestroying then return end
+                
+                if selectedMethod == "Normal" then
+                    normalDestroyMethod(selectedTarget)
+                elseif selectedMethod == "Hard" then
+                    hardDestroyMethod(selectedTarget)
+                end
+                
+                isDestroying = false
+            end)
+        else
+            isDestroying = false
+            ModernGUILibrary.createNotification("Farm destruction cancelled!", "warning")
+        end
+    end
+)
+
+-- Refresh Target List Button - UPDATED VERSION WITH WORKING FUNCTIONALITY
+local refreshButton, refreshMethods = destroyerTab.AddButton(
+    "RefreshTargets",
+    "Refresh Target List",
+    nil,
+    function()
+        -- Get the current selected target to preserve selection if possible
+        local currentTarget = targetMethods.getValue()
+        
+        -- Update farm owners list by scanning the workspace again
+        local newFarmOwners = getAllFarmOwners()
+        
+        -- Check if the dropdown has setOptions method and use it
+        if targetMethods and targetMethods.setOptions and type(targetMethods.setOptions) == "function" then
+            -- Preserve current selection if it still exists in the new list
+            local preserveSelection = false
+            for _, owner in pairs(newFarmOwners) do
+                if owner == currentTarget then
+                    preserveSelection = true
+                    break
+                end
+            end
+            
+            if preserveSelection and currentTarget ~= "Select Target" then
+                -- Update options and keep current selection
+                targetMethods.setOptions(newFarmOwners, currentTarget)
+            else
+                -- Update options and reset to default
+                targetMethods.setOptions(newFarmOwners, "Select Target")
+            end
+            
+            -- Update the global variable
+            farmOwners = newFarmOwners
+            
+            -- Show success notification
+            local farmCount = #newFarmOwners - 1 -- Subtract 1 for "Select Target" option
+            ModernGUILibrary.createNotification("Target list refreshed! Found " .. farmCount .. " farms", "success")
+        else
+            -- Fallback method - just update the global variable and show notification
+            farmOwners = newFarmOwners
+            local farmCount = #newFarmOwners - 1
+            ModernGUILibrary.createNotification("Target list updated! Found " .. farmCount .. " farms (restart dropdown to see changes)", "warning")
+        end
+    end
+)
 
 local settingHeader, settingHeaderMethods = settingTab.AddLabel(
     "SettingHeader",
