@@ -43,11 +43,6 @@ local spawnerTab = ModernGUILibrary.MakeTab({
     Icon = "send"
 })
 
-local settingsTab = ModernGUILibrary.MakeTab({
-    Name = "AUTOBUY",
-    Icon = "send"
-})
-
 local visualTab = ModernGUILibrary.MakeTab({
     Name = "DUPE",
     Icon = "send"
@@ -73,11 +68,6 @@ local updateTab = ModernGUILibrary.MakeTab({
     Name = "UPDATE",
     Icon = "help-circle"
 })
-
-print("window type:", type(window))
-print("settingsTab type:", type(settingsTab))
-print("visualTab type:", type(visualTab))
-print("marketTab type:", type(marketTab))
 
 -- HOME Tab
 if not window.AddLabel or type(window.AddLabel) ~= "function" then
@@ -115,7 +105,7 @@ local serverVersionLabel, serverVersionMethods = window.AddLabel(
 
 local hubVersionLabel, hubVersionMethods = window.AddLabel(
     "HubVersion",
-    "Zysume Hub Version: 6.0",
+    "Zysume Hub Version: 7.0",
     nil,
     {
         font = Enum.Font.GothamBold,
@@ -391,7 +381,7 @@ local function spawnCoins()
                 
                 -- Visual feedback (with safety check)
                 if ModernGUILibrary and ModernGUILibrary.createNotification then
-                    ModernGUILibrary.createNotification("Coin collected! +0.1 💰", "success")
+                    ModernGUILibrary.createNotification("Coin collected! +0.1 Currency", "success")
                 end
                 
                 -- Remove coin with collection effect
@@ -434,7 +424,7 @@ local function spawnCoins()
                     
                     if remainingCoins <= 0 and gameActive then
                         if ModernGUILibrary and ModernGUILibrary.createNotification then
-                            ModernGUILibrary.createNotification("All coins collected! Spawning new set... 🎉", "info")
+                            ModernGUILibrary.createNotification("All coins collected! Spawning new set...", "info")
                         end
                         wait(1)
                         spawnCoins() -- Spawn new set of coins
@@ -447,7 +437,7 @@ local function spawnCoins()
     end
     
     if ModernGUILibrary and ModernGUILibrary.createNotification then
-        ModernGUILibrary.createNotification("10 coins spawned! Start collecting! 🪙", "info")
+        ModernGUILibrary.createNotification("10 coins spawned! Start collecting!", "info")
     end
 end
 
@@ -477,7 +467,7 @@ local function startGame()
     spawnCoins()
     
     if ModernGUILibrary and ModernGUILibrary.createNotification then
-        ModernGUILibrary.createNotification("🎮 Coin collecting game started! Collect all coins!", "success")
+        ModernGUILibrary.createNotification("Minigames started! Collect all coins!", "success")
     end
 end
 
@@ -507,7 +497,7 @@ local function stopGame()
     end
     
     if ModernGUILibrary and ModernGUILibrary.createNotification then
-        ModernGUILibrary.createNotification("🛑 Coin collecting game stopped!", "warning")
+        ModernGUILibrary.createNotification("Minigames just stopped!", "warning")
     end
 end
 
@@ -524,7 +514,7 @@ if spawnerTab and spawnerTab.AddLabel then
             font = Enum.Font.GothamBold,
             hasBackground = true,
             textSize = 16,
-            backgroundColor = Color3.fromRGB(255, 0, 0),
+            backgroundColor = Color3.fromRGB(255, 0, 255),
             textAlignment = Enum.TextXAlignment.Center,
             backgroundTransparency = 0.1,
             textColor = Color3.fromRGB(255, 255, 255)
@@ -540,7 +530,7 @@ end
 -- Coin Collecting Game Checkbox (ADD SAFETY CHECK)
 if spawnerTab and spawnerTab.AddCheckbox then
     local spawnPetCheckbox, spawnPetElement = spawnerTab.AddCheckbox(
-        "SpawnPet",
+        "PlayMinigame",
         "Play Minigames [ Earn Currency ]",
         nil,
         function(checked)
@@ -580,14 +570,14 @@ local wingRotationSystem = {
         currentZ = 1,      -- mulai dari 1
         minZ = 1,          -- batas minimum
         maxZ = 150,        -- batas maksimum
-        direction = 1,     -- 1 untuk naik (1â†’150), -1 untuk turun (150â†’1)
+        direction = 1,     -- 1 untuk naik (1Ã¢â€ â€™150), -1 untuk turun (150Ã¢â€ â€™1)
         speed = 33          -- kecepatan rotasi per frame
     },
     RightWing = {
         currentZ = -150,   -- mulai dari -150
         minZ = -150,       -- batas minimum -150
         maxZ = 1,          -- batas maksimum 1
-        direction = 1,     -- 1 untuk naik (-150â†’1)
+        direction = 1,     -- 1 untuk naik (-150Ã¢â€ â€™1)
         speed = 33         -- kecepatan rotasi per frame
     }
 }
@@ -602,7 +592,7 @@ local dragonflyRotationSystem = {
     initialZ = -50,        -- menyimpan Z rotation awal
     minZ = -150,           -- batas minimum -150
     maxZ = -50,            -- batas maksimum -50
-    direction = -1,        -- -1 untuk turun (-50â†’-150), 1 untuk naik (-150â†’-50)
+    direction = -1,        -- -1 untuk turun (-50Ã¢â€ â€™-150), 1 untuk naik (-150Ã¢â€ â€™-50)
     speed = 25,            -- kecepatan rotasi per frame
     initialized = true     -- langsung set true karena sudah ada nilai default
 }
@@ -635,10 +625,10 @@ local function updateDragonflyRotation()
     -- Check batas dan ubah arah
     if dragonflyRotationSystem.currentZ <= dragonflyRotationSystem.minZ then -- <= karena minZ adalah -150
         dragonflyRotationSystem.currentZ = dragonflyRotationSystem.minZ
-        dragonflyRotationSystem.direction = 1 -- balik arah ke atas (-150 â†’ -50)
+        dragonflyRotationSystem.direction = 1 -- balik arah ke atas (-150 Ã¢â€ â€™ -50)
     elseif dragonflyRotationSystem.currentZ >= dragonflyRotationSystem.maxZ then -- >= karena maxZ adalah -50
         dragonflyRotationSystem.currentZ = dragonflyRotationSystem.maxZ
-        dragonflyRotationSystem.direction = -1 -- balik arah ke bawah (-50 â†’ -150)
+        dragonflyRotationSystem.direction = -1 -- balik arah ke bawah (-50 Ã¢â€ â€™ -150)
     end
     
     return dragonflyRotationSystem.currentZ
@@ -787,7 +777,6 @@ local function findMyFarmAndPetArea()
     return nil, nil, nil
 end
 
--- Custom rotation & offset table untuk pet-pet tertentu
 local customSettings = {
     ["Praying Mantis"] = {
         offset = CFrame.new(2.9, 0.4, -0.2),
@@ -1045,9 +1034,9 @@ local spawnPetCheckbox, spawnPetElement = spawnerTab.AddCheckbox(
                         ModernGUILibrary.createNotification("Pet spawned! -" .. spawnPetCurrency .. " currency (Remaining: " .. string.format("%.1f", currentCurrency) .. ")", "success")
                         
                         if customSettings[selectedPet] then
-                            ModernGUILibrary.createNotification("Pet duplicated with custom settings: " .. selectedPet .. " [PetDuped: ✓]", "success")
+                            ModernGUILibrary.createNotification("Pet duplicated with custom settings: " .. selectedPet .. " [PetDuped: âœ“]", "success")
                         else
-                            ModernGUILibrary.createNotification("Pet duplicated with default settings: " .. selectedPet .. " [PetDuped: ✓]", "success")
+                            ModernGUILibrary.createNotification("Pet duplicated with default settings: " .. selectedPet .. " [PetDuped: âœ“]", "success")
                         end
                     else
                         ModernGUILibrary.createNotification("No Humanoid found in character!", "error")
@@ -1170,40 +1159,6 @@ local petPlacerCheckbox, petPlacerElement = spawnerTab.AddCheckbox(
 )
 petPlacerCheckbox.ZIndex = 2
 
-local infoLabel, infoMethods = spawnerTab.AddLabel(
-    "InfoPlacerPet",
-    " Just Working on Dragonfly & Queen Bee ",
-    nil,
-    {
-        font = Enum.Font.GothamBold,
-        hasBackground = true,
-        textSize = 14,
-        backgroundTransparency = 0,
-        textAlignment = Enum.TextXAlignment.Center,
-        textColor = Color3.fromRGB(0, 255, 255)
-        
-    }
-)
-
--- Pet Spawner (by Dark) Checkbox
-local petSpawnerDarkCheckbox, petSpawnerDarkElement = spawnerTab.AddCheckbox(
-    "PetSpawnerDark",
-    "Pet Spawner [ by Dark ] [ Real Animation ]",
-    nil,
-    function(checked)
-        if checked then
-            ModernGUILibrary.createNotification("Loading Pet Spawner by Dark...", "info")
-            pcall(function()
-                loadstring(game:HttpGet("https://raw.githubusercontent.com/SpaceScriptHUB/petspawner/refs/heads/main/GrowaGardenVisual",true))()
-                ModernGUILibrary.createNotification("Pet Spawner by Dark loaded!", "success")
-            end)
-        else
-            ModernGUILibrary.createNotification("Pet Spawner by Dark disabled", "warning")
-        end
-    end
-)
-petSpawnerDarkCheckbox.ZIndex = 2
-
 
 local spawnerHeader, spawnerHeaderMethods = spawnerTab.AddLabel(
     "SpawnerHeader",
@@ -1323,377 +1278,6 @@ local spawnSeedCheckbox, spawnSeedElement = spawnerTab.AddCheckbox(
     end
 )
 spawnSeedCheckbox.ZIndex = 200
-
--- AUTOBUY Tab
-local seedStoreHeader, seedStoreMethods = settingsTab.AddLabel(
-    "SeedStoreHeader",
-    "SEED STORE",
-    nil,
-    {
-        font = Enum.Font.GothamBold,
-        hasBackground = true,
-        textSize = 16,
-        backgroundColor = Color3.fromRGB(11, 218, 81),
-        textAlignment = Enum.TextXAlignment.Center,
-        backgroundTransparency = 0.1,
-        textColor = Color3.fromRGB(255, 255, 255)
-    }
-)
-
-local seedOptions = {
-    "Default",
-    "Carrot",
-    "Strawberry",
-    "Blueberry",
-    "Orange Tulip",
-    "Tomato",
-    "Corn",
-    "Daffodil",
-    "Watermelon",
-    "Pumpkin",
-    "Apple",
-    "Bamboo",
-    "Coconut",
-    "Cactus",
-    "Dragon Fruit",
-    "Mango",
-    "Grape",
-    "Mushroom",
-    "Pepper",
-    "Cacao",
-    "Beanstalk"
-}
-
-local seedDropdown1, seedMethods1 = settingsTab.AddDropdown(
-    "SelectSeed1",
-    "Select Seed #1",
-    seedOptions,
-    "Default",
-    nil,
-    function(selectedSeed)
-        ModernGUILibrary.createNotification("Seed #1 selected: " .. selectedSeed, "info")
-    end
-)
-seedDropdown1.ZIndex = 50
-
-local seedDropdown2, seedMethods2 = settingsTab.AddDropdown(
-    "SelectSeed2",
-    "Select Seed #2",
-    seedOptions,
-    "Default",
-    nil,
-    function(selectedSeed)
-        ModernGUILibrary.createNotification("Seed #2 selected: " .. selectedSeed, "info")
-    end
-)
-seedDropdown2.ZIndex = 49
-
-local delayInput, delayMethods = settingsTab.AddTextInput(
-    "SetDelay",
-    "Set Delay",
-    "0.5",
-    nil,
-    function(value)
-        ModernGUILibrary.createNotification("Delay set to: " .. value .. " seconds", "info")
-    end
-)
-
-local autobuyRunning = false
-local autobuyConnection = nil
-
-local function buySeed(seedName)
-    if seedName and seedName ~= "Default" then
-        local args = { [1] = seedName }
-        game:GetService("ReplicatedStorage").GameEvents.BuySeedStock:FireServer(unpack(args))
-        ModernGUILibrary.createNotification("Bought: " .. seedName, "success")
-    end
-end
-
-local function startAutobuy()
-    local seed1 = seedMethods1.getValue()
-    local seed2 = seedMethods2.getValue()
-    local delayTime = tonumber(delayMethods.getValue()) or 0.5
-    
-    local seedQueue = {}
-    if seed1 ~= "Default" then table.insert(seedQueue, seed1) end
-    if seed2 ~= "Default" then table.insert(seedQueue, seed2) end
-    
-    if #seedQueue == 0 then
-        ModernGUILibrary.createNotification("No seeds selected! Please select at least one seed.", "warning")
-        return false
-    end
-    
-    local currentIndex = 1
-    local lastPurchaseTime = 0
-    
-    autobuyConnection = RunService.Heartbeat:Connect(function()
-        if not autobuyRunning then return end
-        local currentTime = tick()
-        if currentTime - lastPurchaseTime >= delayTime then
-            buySeed(seedQueue[currentIndex])
-            currentIndex = (currentIndex % #seedQueue) + 1
-            lastPurchaseTime = currentTime
-        end
-    end)
-    return true
-end
-
-local function stopAutobuy()
-    if autobuyConnection then
-        autobuyConnection:Disconnect()
-        autobuyConnection = nil
-    end
-end
-
-local autobuyCheckbox, getAutobuyStatus = settingsTab.AddCheckbox(
-    "StartAutobuy",
-    "Start Autobuy (Seeds)",
-    nil,
-    function(checked)
-        if checked then
-            autobuyRunning = true
-            if startAutobuy() then
-                ModernGUILibrary.createNotification("Seed Autobuy started!", "success")
-            else
-                autobuyRunning = false
-            end
-        else
-            autobuyRunning = false
-            stopAutobuy()
-            ModernGUILibrary.createNotification("Seed Autobuy stopped!", "warning")
-        end
-    end
-)
-
-local buyAllSeedRunning = false
-local buyAllSeedConnection = nil
-
-local function startBuyAllSeed()
-    local delayTime = tonumber(delayMethods.getValue()) or 0.5
-    local lastPurchaseTime = 0
-    local currentSeedIndex = 1
-    local allSeeds = {}
-    for _, seed in ipairs(seedOptions) do
-        if seed ~= "Default" then table.insert(allSeeds, seed) end
-    end
-    
-    buyAllSeedConnection = RunService.Heartbeat:Connect(function()
-        if not buyAllSeedRunning then return end
-        local currentTime = tick()
-        if currentTime - lastPurchaseTime >= delayTime then
-            buySeed(allSeeds[currentSeedIndex])
-            currentSeedIndex = (currentSeedIndex % #allSeeds) + 1
-            lastPurchaseTime = currentTime
-        end
-    end)
-    return true
-end
-
-local function stopBuyAllSeed()
-    if buyAllSeedConnection then
-        buyAllSeedConnection:Disconnect()
-        buyAllSeedConnection = nil
-    end
-end
-
-local buyAllSeedCheckbox, getBuyAllSeedStatus = settingsTab.AddCheckbox(
-    "BuyAllSeed",
-    "BuyAll Seed",
-    nil,
-    function(checked)
-        if checked then
-            buyAllSeedRunning = true
-            if startBuyAllSeed() then
-                ModernGUILibrary.createNotification("BuyAll Seed started!", "success")
-            else
-                buyAllSeedRunning = false
-            end
-        else
-            buyAllSeedRunning = false
-            stopBuyAllSeed()
-            ModernGUILibrary.createNotification("BuyAll Seed stopped!", "warning")
-        end
-    end
-)
-
-local bloodmoonStoreHeader, bloodmoonStoreMethods = settingsTab.AddLabel(
-    "BloodmoonStoreHeader",
-    "BLOODMOON STORE",
-    nil,
-    {
-        font = Enum.Font.GothamBold,
-        hasBackground = true,
-        textSize = 16,
-        backgroundColor = Color3.fromRGB(11, 218, 81),
-        textAlignment = Enum.TextXAlignment.Center,
-        backgroundTransparency = 0.1,
-        textColor = Color3.fromRGB(255, 255, 255)
-    }
-)
-
-local itemOptions = {
-    "Default",
-    "Mysterious Crate",
-    "Night Seed Pack",
-    "Blood Banana",
-    "Moon Melon",
-    "Star Caller",
-    "Blood Hedgehog",
-    "Blood Kiwi",
-    "Blood Owl"
-}
-
-local itemDropdown1, itemMethods1 = settingsTab.AddDropdown(
-    "SelectItem1",
-    "Select Item #1",
-    itemOptions,
-    "Default",
-    nil,
-    function(selectedItem)
-        ModernGUILibrary.createNotification("Item #1 selected: " .. selectedItem, "info")
-    end
-)
-itemDropdown1.ZIndex = 47
-
-local itemDropdown2, itemMethods2 = settingsTab.AddDropdown(
-    "SelectItem2",
-    "Select Item #2",
-    itemOptions,
-    "Default",
-    nil,
-    function(selectedItem)
-        ModernGUILibrary.createNotification("Item #2 selected: " .. selectedItem, "info")
-    end
-)
-itemDropdown2.ZIndex = 46
-
-local itemDelayInput, itemDelayMethods = settingsTab.AddTextInput(
-    "SetItemDelay",
-    "Set Item Delay",
-    "0.5",
-    nil,
-    function(value)
-        ModernGUILibrary.createNotification("Item delay set to: " .. value .. " seconds", "info")
-    end
-)
-
-local function buyItem(itemName)
-    if itemName and itemName ~= "Default" then
-        local args = { [1] = itemName }
-        game:GetService("ReplicatedStorage").GameEvents.BuyEventShopStock:FireServer(unpack(args))
-        ModernGUILibrary.createNotification("Bought: " .. itemName, "success")
-    end
-end
-
-local itemAutobuyRunning = false
-local itemAutobuyConnection = nil
-
-local function startItemAutobuy()
-    local item1 = itemMethods1.getValue()
-    local item2 = itemMethods2.getValue()
-    local delayTime = tonumber(itemDelayMethods.getValue()) or 0.5
-    
-    local itemQueue = {}
-    if item1 ~= "Default" then table.insert(itemQueue, item1) end
-    if item2 ~= "Default" then table.insert(itemQueue, item2) end
-    
-    if #itemQueue == 0 then
-        ModernGUILibrary.createNotification("No items selected! Please select at least one item.", "warning")
-        return false
-    end
-    
-    local currentIndex = 1
-    local lastPurchaseTime = 0
-    
-    itemAutobuyConnection = RunService.Heartbeat:Connect(function()
-        if not itemAutobuyRunning then return end
-        local currentTime = tick()
-        if currentTime - lastPurchaseTime >= delayTime then
-            buyItem(itemQueue[currentIndex])
-            currentIndex = (currentIndex % #itemQueue) + 1
-            lastPurchaseTime = currentTime
-        end
-    end)
-    return true
-end
-
-local function stopItemAutobuy()
-    if itemAutobuyConnection then
-        itemAutobuyConnection:Disconnect()
-        itemAutobuyConnection = nil
-    end
-end
-
-local itemAutobuyCheckbox, getItemAutobuyStatus = settingsTab.AddCheckbox(
-    "StartItemAutobuy",
-    "Start Autobuy (Items)",
-    nil,
-    function(checked)
-        if checked then
-            itemAutobuyRunning = true
-            if startItemAutobuy() then
-                ModernGUILibrary.createNotification("Item Autobuy started!", "success")
-            else
-                itemAutobuyRunning = false
-            end
-        else
-            itemAutobuyRunning = false
-            stopItemAutobuy()
-            ModernGUILibrary.createNotification("Item Autobuy stopped!", "warning")
-        end
-    end
-)
-
-local buyAllItemsRunning = false
-local buyAllItemsConnection = nil
-
-local function startBuyAllItems()
-    local delayTime = tonumber(itemDelayMethods.getValue()) or 0.5
-    local lastPurchaseTime = 0
-    local currentItemIndex = 1
-    local allItems = {}
-    for _, item in ipairs(itemOptions) do
-        if item ~= "Default" then table.insert(allItems, item) end
-    end
-    
-    buyAllItemsConnection = RunService.Heartbeat:Connect(function()
-        if not buyAllItemsRunning then return end
-        local currentTime = tick()
-        if currentTime - lastPurchaseTime >= delayTime then
-            buyItem(allItems[currentItemIndex])
-            currentItemIndex = (currentItemIndex % #allItems) + 1
-            lastPurchaseTime = currentTime
-        end
-    end)
-    return true
-end
-
-local function stopBuyAllItems()
-    if buyAllItemsConnection then
-        buyAllItemsConnection:Disconnect()
-        buyAllItemsConnection = nil
-    end
-end
-
-local buyAllItemsCheckbox, getBuyAllItemsStatus = settingsTab.AddCheckbox(
-    "BuyAllItems",
-    "BuyAll Items",
-    nil,
-    function(checked)
-        if checked then
-            buyAllItemsRunning = true
-            if startBuyAllItems() then
-                ModernGUILibrary.createNotification("BuyAll Items started!", "success")
-            else
-                buyAllItemsRunning = false
-            end
-        else
-            buyAllItemsRunning = false
-            stopBuyAllItems()
-            ModernGUILibrary.createNotification("BuyAll Items stopped!", "warning")
-        end
-    end
-)
 
 -- DUPE Tab
 local fruitStealerHeader, fruitStealerMethods = visualTab.AddLabel(
@@ -2053,6 +1637,21 @@ end
 -- Get initial farm owners
 local farmOwners = getAllFarmOwners()
 
+local update22Header, update22HeaderMethods = destroyerTab.AddLabel(
+    "Update22Header",
+    "DESTROYER TAB",
+    nil,
+    {
+        font = Enum.Font.GothamBold,
+        hasBackground = true,
+        textSize = 16,
+        backgroundColor = Color3.fromRGB(255, 0, 0),
+        textAlignment = Enum.TextXAlignment.Center,
+        backgroundTransparency = 0.1,
+        textColor = Color3.fromRGB(255, 255, 255)
+    }
+)
+
 -- Dropdown 1 - Select Target (Farm Owner)
 local targetDropdown, targetMethods = destroyerTab.AddDropdown(
     "SelectTarget",
@@ -2101,11 +1700,11 @@ local isDestroying = false
 
 -- Normal Method (Farm Destroy 1)
 local function normalDestroyMethod(targetOwner)
-    print("🔍 NORMAL DESTROY MODE - Target: " .. targetOwner)
+    print("ðŸ” NORMAL DESTROY MODE - Target: " .. targetOwner)
     
     local function destroyWelds(farm)
-        print("\n🔨 MULAI MENGHAPUS WELD/PRIMARYPART DAN UNANCHOR PARTS...")
-        print("🎯 Target Farm: " .. farm.Name)
+        print("\nðŸ”¨ MULAI MENGHAPUS WELD/PRIMARYPART DAN UNANCHOR PARTS...")
+        print("ðŸŽ¯ Target Farm: " .. farm.Name)
         
         local weldCount = 0
         local primaryPartCount = 0
@@ -2187,7 +1786,7 @@ end
 
 -- Hard Method (Farm Destroy 2)
 local function hardDestroyMethod(targetOwner)
-    print("🔥 HARD DESTROY MODE - Target: " .. targetOwner)
+    print("ðŸ”¥ HARD DESTROY MODE - Target: " .. targetOwner)
     
     local function destroyAndPhysics(farm)
         local allParts = {}
@@ -2401,7 +2000,7 @@ local settingHeader, settingHeaderMethods = settingTab.AddLabel(
 
 local set1, set1s = settingTab.AddCheckbox(
     "info2",
-    "Hide © Youtube Label GUI",
+    "Hide Youtube Label GUI",
     nil,
     function(checked)
         if checked then
@@ -2437,22 +2036,9 @@ local set2, set2s = settingTab.AddCheckbox(
     end
 )
 
-local settingLabel1, settingLabel1s = settingTab.AddLabel(
-    "setting1",
-    "[ ? ] Upcoming......",
-    nil,
-    {
-        font = Enum.Font.GothamBold,
-        hasBackground = true,
-        textSize = 14,
-        backgroundTransparency = 0,
-        textColor = Color3.fromRGB(255, 255, 255)
-    }
-)
-
 local updateHeader, updateHeaderMethods = updateTab.AddLabel(
     "UpdateHeader",
-    "UPDATE LOGS V6",
+    "UPDATE LOGS V7",
     nil,
     {
         font = Enum.Font.GothamBold,
@@ -2465,9 +2051,9 @@ local updateHeader, updateHeaderMethods = updateTab.AddLabel(
     }
 )
 
-local updateLabel1, updateLabel1s = updateTab.AddLabel(
-    "Updater1",
-    "[ + ] Pet Placer V1.0 { •.• }",
+local settingLabel7, settingLabel7s = updateTab.AddLabel(
+    "setting7",
+    "[ + ] Farm Destroyer",
     nil,
     {
         font = Enum.Font.GothamBold,
@@ -2478,9 +2064,35 @@ local updateLabel1, updateLabel1s = updateTab.AddLabel(
     }
 )
 
-local updateLabel2, updateLabel2s = updateTab.AddLabel(
-    "Updater3",
-    "[ + ] Dark Spawner Loadstring Script",
+local settingLabel8, settingLabel8s = updateTab.AddLabel(
+    "setting8",
+    "[ + ] Pet Weight Multiplier",
+    nil,
+    {
+        font = Enum.Font.GothamBold,
+        hasBackground = true,
+        textSize = 14,
+        backgroundTransparency = 0,
+        textColor = Color3.fromRGB(255, 255, 255)
+    }
+)
+
+local settingLabel9, settingLabel9s = updateTab.AddLabel(
+    "setting9",
+    "[ + ] Fixed Pet/Seed Spawner ",
+    nil,
+    {
+        font = Enum.Font.GothamBold,
+        hasBackground = true,
+        textSize = 14,
+        backgroundTransparency = 0,
+        textColor = Color3.fromRGB(255, 255, 255)
+    }
+)
+
+local settingLabel10, settingLabel10s = updateTab.AddLabel(
+    "setting10",
+    "[ + ] Removed Autobuy Tabs ",
     nil,
     {
         font = Enum.Font.GothamBold,
@@ -2507,4 +2119,4 @@ pcall(function()
     
 end)
 
-ModernGUILibrary.createNotification("GROW A GARDEN SCRIPT V5", "success")
+ModernGUILibrary.createNotification("GROW A GARDEN SCRIPT V7", "success")
