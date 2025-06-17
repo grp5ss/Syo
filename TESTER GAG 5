@@ -158,37 +158,28 @@ spawn(function()
     end
 end)
 
-local autoTeleport, getAutoTeleportStatus = window.AddCheckbox(
-    "info1",
-    "Grow a Garden v2",
-    nil,
-    function(checked)
-        if checked then
-            ModernGUILibrary.createNotification("GROW A GARDEN V2!", "success")
-            loadstring(game:HttpGet("https://raw.githubusercontent.com/ZusumeHub/ZusumeHub/refs/heads/main/Gyr2"))()
-            local existingGuis = PlayerGui:FindFirstChild("TeleportGUI")
-            if existingGuis then
-                existingGuis:Destroy()
-            end
-            loadstring(game:HttpGet("https://raw.githubusercontent.com/ZusumeHub/ZusumeHub/refs/heads/main/Gyr2"))()
-        else
-            local existingGuis = PlayerGui:FindFirstChild("TeleportGUI")
-            if existingGuis then
-                existingGuis:Destroy()
-            end
-            ModernGUILibrary.createNotification("GROW A GARDEN V2 DISABLED", "info")
-        end
-    end
-)
-
 local autoTeleport1, getAutoTeleportStatus1 = window.AddCheckbox(
     "info2",
-    "No-Lag Hub",
+    "NO LAG HUB [ OFFICIAL ]",
     nil,
     function(checked)
         if checked then
             ModernGUILibrary.createNotification("NO-LAG HUB!", "success")
             loadstring(game:HttpGet("https://rawscripts.net/raw/Grow-a-Garden-NoLag-Hub-no-key-38699"))()
+        else
+            ModernGUILibrary.createNotification("NO-LAG HUB", "info")
+        end
+    end
+)
+
+local autoTeleport992, getAutoTeleportStatus992 = window.AddCheckbox(
+    "info992",
+    "SPEED HUB [ OFFICIAL ]",
+    nil,
+    function(checked)
+        if checked then
+            ModernGUILibrary.createNotification("NO-LAG HUB!", "success")
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/AhmadV99/Speed-Hub-X/main/Speed%20Hub%20X.lua", true))()
         else
             ModernGUILibrary.createNotification("NO-LAG HUB", "info")
         end
@@ -1459,42 +1450,6 @@ local stealButton, stealButtonElement = visualTab.AddButton(
             end
         end
     end
-)
-
-local autoTeleport2, getAutoTeleportStatus2 = visualTab.AddCheckbox(
-    "info9",
-    "Duplicate Sheckles [ OLD SERVER ]",
-    nil,
-    function(checked)
-        if checked then
-            ModernGUILibrary.createNotification("INFINITE MONEY!", "success")
-            loadstring(game:HttpGet("https://raw.githubusercontent.com/grp5ss/Syo/refs/heads/main/INFMONEY"))()
-            local existingGuis = PlayerGui:FindFirstChild("TeleportGUI")
-            if existingGuis then
-                existingGuis:Destroy()
-            end
-            loadstring(game:HttpGet("https://raw.githubusercontent.com/grp5ss/Syo/refs/heads/main/INFMONEY"))()
-        else
-            local existingGuis = PlayerGui:FindFirstChild("PetSellerGUI")
-            if existingGuis then
-                existingGuis:Destroy()
-            end
-            ModernGUILibrary.createNotification("INFINITE MONEY", "info")
-        end
-    end
-)
-
-local instructionLabel, instructionMethods = visualTab.AddLabel(
-    "InstructionLabel",
-    "Ask Someone To Hold/Equip Pet",
-    nil,
-    {
-        font = Enum.Font.GothamBold,
-        hasBackground = true,
-        textSize = 14,
-        backgroundTransparency = 0,
-        textColor = Color3.fromRGB(255, 255, 255)
-    }
 )
 
 -- MARKET Tab
