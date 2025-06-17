@@ -44,7 +44,7 @@ local spawnerTab = ModernGUILibrary.MakeTab({
 })
 
 local visualTab = ModernGUILibrary.MakeTab({
-    Name = "DUPE",
+    Name = "STEAL",
     Icon = "send"
 })
 
@@ -1273,183 +1273,30 @@ spawnSeedCheckbox.ZIndex = 200
 -- DUPE Tab
 local fruitStealerHeader, fruitStealerMethods = visualTab.AddLabel(
     "FruitStealerHeader",
-    "FRUIT STEALER",
+    "Reproggressing Stealer!!",
     nil,
     {
         font = Enum.Font.GothamBold,
         hasBackground = true,
         textSize = 16,
-        backgroundColor = Color3.fromRGB(11, 218, 81),
+        backgroundColor = Color3.fromRGB(255, 0, 127),
         textAlignment = Enum.TextXAlignment.Center,
         backgroundTransparency = 0.1,
         textColor = Color3.fromRGB(255, 255, 255)
     }
 )
 
-local function getUpdatedPlayersList()
-    local players = {}
-    for _, player in pairs(game.Players:GetPlayers()) do
-        if player ~= LocalPlayer then
-            table.insert(players, player.Name)
-        end
-    end
-    return players
-end
-
-local function getBackpackItemsForPlayer(playerName)
-    if not playerName or playerName == "" then
-        return {"Select a player..."}
-    end
-    local targetPlayer = game.Players:FindFirstChild(playerName)
-    if not targetPlayer then
-        return {"Player not found"}
-    end
-    local backpack = targetPlayer:FindFirstChild("Backpack")
-    if not backpack then
-        return {"No backpack found"}
-    end
-    local items = {}
-    for _, item in pairs(backpack:GetChildren()) do
-        if item:IsA("Tool") or item:IsA("HopperBin") then
-            table.insert(items, item.Name)
-        end
-    end
-    return #items > 0 and items or {"No items in backpack"}
-end
-
-local function stealItem(targetPlayerName, itemName)
-    local targetPlayer = game.Players:FindFirstChild(targetPlayerName)
-    local localPlayer = LocalPlayer
-    if not targetPlayer then
-        ModernGUILibrary.createNotification("Target player not found!", "error")
-        return false
-    end
-    if not localPlayer then
-        ModernGUILibrary.createNotification("Local player not found!", "error")
-        return false
-    end
-    local targetBackpack = targetPlayer:FindFirstChild("Backpack")
-    if not targetBackpack then
-        ModernGUILibrary.createNotification("Target player's backpack not found!", "error")
-        return false
-    end
-    local targetItem = targetBackpack:FindFirstChild(itemName)
-    if not targetItem then
-        ModernGUILibrary.createNotification("Item '" .. itemName .. "' not found in target's backpack!", "error")
-        return false
-    end
-    local localBackpack = localPlayer:FindFirstChild("Backpack")
-    if not localBackpack then
-        ModernGUILibrary.createNotification("Your backpack not found!", "error")
-        return false
-    end
-    local success, result = pcall(function()
-        local clonedItem = targetItem:Clone()
-        clonedItem.Parent = localBackpack
-        ModernGUILibrary.createNotification("Successfully copied '" .. itemName .. "' to your backpack!", "success")
-    end)
-    return success
-end
-
--- Declare targetItemsMethods variable first
-local targetItemsMethods
-
-local selectPlayerDropdown, selectPlayerMethods = visualTab.AddDropdown(
-    "SelectPlayer",
-    "Select Player",
-    {"Select a player..."},
-    "Select a player...",
+local settingLabelc, settingLabelcs = updateTab.AddLabel(
+    "settingc",
+    "[ ? ] Will be applied in v8 [ Sneakpeak on discord ]",
     nil,
-    function(selectedPlayer)
-        if selectedPlayer ~= "Select a player..." then
-            ModernGUILibrary.createNotification("Loading items for " .. selectedPlayer .. "...", "info")
-            local backpackItems = getBackpackItemsForPlayer(selectedPlayer)
-            
-            -- Check if targetItemsMethods exists before using it
-            if targetItemsMethods and targetItemsMethods.setOptions then
-                targetItemsMethods.setOptions(backpackItems, backpackItems[1])
-                ModernGUILibrary.createNotification("Loaded " .. #backpackItems .. " items for " .. selectedPlayer, "success")
-            else
-                ModernGUILibrary.createNotification("Error: Could not update items - targetItemsMethods not ready", "error")
-            end
-        else
-            -- Check if targetItemsMethods exists before using it
-            if targetItemsMethods and targetItemsMethods.setOptions then
-                targetItemsMethods.setOptions({"Select a player..."}, "Select a player...")
-            end
-        end
-    end
-)
-selectPlayerDropdown.ZIndex = 200
-
--- Now initialize targetItemsMethods
-local targetItemsDropdown
-targetItemsDropdown, targetItemsMethods = visualTab.AddDropdown(
-    "TargetItems",
-    "Target Items",
-    {"Select a player..."},
-    "Select a player...",
-    nil,
-    function(selectedItem)
-        if selectedItem ~= "Select a player..." and selectedItem ~= "Player not found" and 
-           selectedItem ~= "No backpack found" and selectedItem ~= "No items in backpack" then
-            ModernGUILibrary.createNotification("Selected: " .. selectedItem, "info")
-        end
-    end
-)
-targetItemsDropdown.ZIndex = 199
-
-local refreshButton, refreshButtonElement = visualTab.AddButton(
-    "RefreshItems",
-    "Refresh Players",
-    nil,
-    function()
-        ModernGUILibrary.createNotification("Refreshing player list...", "info")
-        local playersList = getUpdatedPlayersList()
-        if #playersList == 0 then
-            playersList = {"No players found"}
-        end
-        if selectPlayerMethods and selectPlayerMethods.setOptions then
-            selectPlayerMethods.setOptions(playersList, playersList[1])
-            local selectedPlayer = selectPlayerMethods.getValue and selectPlayerMethods.getValue() or playersList[1]
-            local backpackItems = getBackpackItemsForPlayer(selectedPlayer)
-            if targetItemsMethods and targetItemsMethods.setOptions then
-                targetItemsMethods.setOptions(backpackItems, backpackItems[1])
-                ModernGUILibrary.createNotification("Refreshed! Found " .. #playersList .. " players", "success")
-            else
-                ModernGUILibrary.createNotification("Error: Could not update items", "error")
-            end
-        else
-            ModernGUILibrary.createNotification("Error: Could not update player list", "error")
-        end
-    end
-)
-
-local stealButton, stealButtonElement = visualTab.AddButton(
-    "StealItem",
-    "Steal it",
-    nil,
-    function()
-        local selectedPlayer = selectPlayerMethods.getValue() or "Select a player..."
-        local selectedItem = targetItemsMethods.getValue() or "Select a player..."
-        if selectedPlayer == "Select a player..." or selectedPlayer == "No players found" then
-            ModernGUILibrary.createNotification("Please select a player first!", "error")
-            return
-        end
-        if selectedItem == "Select a player..." or selectedItem == "Player not found" or 
-           selectedItem == "No backpack found" or selectedItem == "No items in backpack" then
-            ModernGUILibrary.createNotification("Please select a valid item first!", "error")
-            return
-        end
-        ModernGUILibrary.createNotification("Attempting to copy " .. selectedItem .. " from " .. selectedPlayer .. "...", "info")
-        local success = stealItem(selectedPlayer, selectedItem)
-        if success then
-            local backpackItems = getBackpackItemsForPlayer(selectedPlayer)
-            if targetItemsMethods and targetItemsMethods.setOptions then
-                targetItemsMethods.setOptions(backpackItems, backpackItems[1] or "No items in backpack")
-            end
-        end
-    end
+    {
+        font = Enum.Font.GothamBold,
+        hasBackground = true,
+        textSize = 14,
+        backgroundTransparency = 0,
+        textColor = Color3.fromRGB(255, 255, 255)
+    }
 )
 
 -- MARKET Tab
