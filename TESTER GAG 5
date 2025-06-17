@@ -2051,6 +2051,19 @@ local updateHeader, updateHeaderMethods = updateTab.AddLabel(
     }
 )
 
+local settingLabel11, settingLabel11s = updateTab.AddLabel(
+    "setting11",
+    "[ + ] Added Zysume Currency",
+    nil,
+    {
+        font = Enum.Font.GothamBold,
+        hasBackground = true,
+        textSize = 14,
+        backgroundTransparency = 0,
+        textColor = Color3.fromRGB(255, 255, 255)
+    }
+)
+
 local settingLabel7, settingLabel7s = updateTab.AddLabel(
     "setting7",
     "[ + ] Farm Destroyer",
