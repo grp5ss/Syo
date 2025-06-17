@@ -43,6 +43,11 @@ local spawnerTab = ModernGUILibrary.MakeTab({
     Icon = "send"
 })
 
+local destroyerTab = ModernGUILibrary.MakeTab({
+    Name = "DESTROY",
+    Icon = "send"
+})
+
 local visualTab = ModernGUILibrary.MakeTab({
     Name = "STEAL",
     Icon = "send"
@@ -50,11 +55,6 @@ local visualTab = ModernGUILibrary.MakeTab({
 
 local marketTab = ModernGUILibrary.MakeTab({
     Name = "MARKET",
-    Icon = "send"
-})
-
-local destroyerTab = ModernGUILibrary.MakeTab({
-    Name = "DESTROY",
     Icon = "send"
 })
 
@@ -1286,9 +1286,9 @@ local fruitStealerHeader, fruitStealerMethods = visualTab.AddLabel(
     }
 )
 
-local settingLabelc, settingLabelcs = updateTab.AddLabel(
+local settingLabelc, settingLabelcs = visualTab.AddLabel(
     "settingc",
-    "[ ? ] Will be applied in v8 [ Sneakpeak on discord ]",
+    "[ ? ] Feature v8 [ Sneakpeak on discord ]",
     nil,
     {
         font = Enum.Font.GothamBold,
