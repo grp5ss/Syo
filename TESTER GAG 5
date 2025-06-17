@@ -962,12 +962,12 @@ local spawnPetCheckbox, spawnPetElement = spawnerTab.AddCheckbox(
     function(checked)
         if checked then
             -- Cek apakah currency cukup
-            if currentCurrency < spawnPetCurrency then
-                ModernGUILibrary.createNotification("Insufficient currency! Need " .. spawnPetCurrency .. " but only have " .. string.format("%.1f", currentCurrency), "error")
+            --if currentCurrency < spawnPetCurrency then
+                --ModernGUILibrary.createNotification("Insufficient currency! Need " .. spawnPetCurrency .. " but only have " .. string.format("%.1f", currentCurrency), "error")
                 -- Reset checkbox karena tidak cukup currency
-                spawnPetElement:SetValue(false)
-                return
-            end
+                --spawnPetElement:SetValue(false)
+                --return
+            --end
             
             selectedPet = petDropdownMethods.getValue() or ""
             petWeight = weightInputMethods.getValue() or "1.0"
