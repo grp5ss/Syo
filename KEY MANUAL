@@ -2,7 +2,7 @@
 -- File ini berisi definisi kunci-kunci yang valid
 
 -- Kunci untuk Verification (akses normal)
-getgenv().sf_key = "FREE_8293728341921"
+getgenv().sf_key = "FREE_A289F9229S92X1"
 
 -- Kunci untuk Early Access (akses khusus)
 getgenv().early_access_key = "ZUSUME_EARLY_ACCESS_2024"
