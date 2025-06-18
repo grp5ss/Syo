@@ -1167,7 +1167,7 @@ petPlacerCheckbox.ZIndex = 2
 
 local settingLabel00, settingLabel00s = spawnerTab.AddLabel(
     "setting00",
-    "Pet Placer "Animated" by SudaisXPanScript",
+    "Pet Placer 'Animated' by SudaisXPanScript",
     nil,
     {
         font = Enum.Font.GothamBold,
@@ -1896,7 +1896,7 @@ local updateHeader, updateHeaderMethods = updateTab.AddLabel(
 
 local settingLabel11, settingLabel11s = updateTab.AddLabel(
     "setting11",
-    "[ + ] Added Pet Placer by "SudaisXPan"",
+    "[ + ] Added Pet Placer by 'SudaisXPan' ",
     nil,
     {
         font = Enum.Font.GothamBold,
