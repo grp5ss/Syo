@@ -1819,14 +1819,40 @@ local set2, set2s = settingTab.AddCheckbox(
     end
 )
 
-local scaleInput, scaleMethods = destroyerTab.AddTextInput(
+local scaleinput1, scaleinputs1 = settingTab.AddLabel(
+    "scaleinp1",
+    "[ + ] Scaler Min-Max { 0.6 - 1.1 } ",
+    nil,
+    {
+        font = Enum.Font.GothamBold,
+        hasBackground = true,
+        textSize = 14,
+        backgroundTransparency = 0,
+        textColor = Color3.fromRGB(255, 255, 255)
+    }
+)
+
+local scaleInput, scaleMethods = settingTab.AddTextInput(
     "SetScale",
-    "Set GUI Scale",
+    "Set GUI Scale:",
     "0.933",
     nil,
     function(value)
         local numValue = tonumber(value)
         if numValue then
+            -- Set minimum dan maksimum nilai
+            local minScale = 0.6
+            local maxScale = 1.1
+            
+            -- Validasi range
+            if numValue < minScale then
+                numValue = minScale
+                ModernGUILibrary.createNotification("Value too low! Set to minimum: " .. minScale, "warning")
+            elseif numValue > maxScale then
+                numValue = maxScale
+                ModernGUILibrary.createNotification("Value too high! Set to maximum: " .. maxScale, "warning")
+            end
+            
             -- Mengatur scale GuiScale
             local player = game:GetService("Players").LocalPlayer
             local guiScale = player.PlayerGui.ModernGUI.GuiScale
@@ -1834,7 +1860,7 @@ local scaleInput, scaleMethods = destroyerTab.AddTextInput(
             
             ModernGUILibrary.createNotification("GUI Scale set to: " .. numValue, "info")
         else
-            ModernGUILibrary.createNotification("Invalid input! Please enter a number.", "error")
+            ModernGUILibrary.createNotification("Invalid input! Please enter a number between 0.5 and 2.0.", "error")
         end
     end
 )
