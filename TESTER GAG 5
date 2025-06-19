@@ -1832,6 +1832,19 @@ local scaleinput1, scaleinputs1 = settingTab.AddLabel(
     }
 )
 
+local scaleinput2, scaleinputs2 = settingTab.AddLabel(
+    "scaleinp2",
+    "[ + ] Default GUI { 0.993 }",
+    nil,
+    {
+        font = Enum.Font.GothamBold,
+        hasBackground = true,
+        textSize = 14,
+        backgroundTransparency = 0,
+        textColor = Color3.fromRGB(255, 255, 255)
+    }
+)
+
 local scaleInput, scaleMethods = settingTab.AddTextInput(
     "SetScale",
     "Set GUI Scale:",
