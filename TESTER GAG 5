@@ -1819,6 +1819,26 @@ local set2, set2s = settingTab.AddCheckbox(
     end
 )
 
+local scaleInput, scaleMethods = destroyerTab.AddTextInput(
+    "SetScale",
+    "Set GUI Scale",
+    "0.933",
+    nil,
+    function(value)
+        local numValue = tonumber(value)
+        if numValue then
+            -- Mengatur scale GuiScale
+            local player = game:GetService("Players").LocalPlayer
+            local guiScale = player.PlayerGui.ModernGUI.GuiScale
+            guiScale.Scale = numValue
+            
+            ModernGUILibrary.createNotification("GUI Scale set to: " .. numValue, "info")
+        else
+            ModernGUILibrary.createNotification("Invalid input! Please enter a number.", "error")
+        end
+    end
+)
+
 local updateHeader, updateHeaderMethods = updateTab.AddLabel(
     "UpdateHeader",
     "UPDATE LOGS V8",
@@ -1837,6 +1857,32 @@ local updateHeader, updateHeaderMethods = updateTab.AddLabel(
 local settingLabel11, settingLabel11s = updateTab.AddLabel(
     "setting11",
     "[ + ] Added Fruit Stealer v1.0 ",
+    nil,
+    {
+        font = Enum.Font.GothamBold,
+        hasBackground = true,
+        textSize = 14,
+        backgroundTransparency = 0,
+        textColor = Color3.fromRGB(255, 255, 255)
+    }
+)
+
+local settingLabel12, settingLabel12s = updateTab.AddLabel(
+    "setting12",
+    "[ + ] Added GUI Resizer ",
+    nil,
+    {
+        font = Enum.Font.GothamBold,
+        hasBackground = true,
+        textSize = 14,
+        backgroundTransparency = 0,
+        textColor = Color3.fromRGB(255, 255, 255)
+    }
+)
+
+local settingLabel13, settingLabel13s = updateTab.AddLabel(
+    "setting13",
+    "[ + ] Removed Market Tab",
     nil,
     {
         font = Enum.Font.GothamBold,
