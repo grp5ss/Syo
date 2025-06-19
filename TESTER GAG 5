@@ -53,11 +53,10 @@ local destroyerTab = ModernGUILibrary.MakeTab({
     Icon = "send"
 })
 
-local marketTab = ModernGUILibrary.MakeTab({
-    Name = "MARKET",
+local mainTab = ModernGUILibrary.MakeTab({
+    Name = "MAIN",
     Icon = "send"
 })
-
 
 local settingTab = ModernGUILibrary.MakeTab({
     Name = "SETTINGS",
@@ -1362,10 +1361,9 @@ local fruitStealerCheckbox, fruitStealerElement = visualTab.AddCheckbox(
 )
 fruitStealerCheckbox.ZIndex = 2
 
--- MARKET Tab
-local marketHeader, marketHeaderMethods = marketTab.AddLabel(
+local marketHeader, marketHeaderMethods = mainTab.AddLabel(
     "MarketHeader",
-    "MARKET MENU",
+    "MAIN HACKS [ V9 FEATURE ]",
     nil,
     {
         font = Enum.Font.GothamBold,
@@ -1376,86 +1374,6 @@ local marketHeader, marketHeaderMethods = marketTab.AddLabel(
         backgroundTransparency = 0.1,
         textColor = Color3.fromRGB(255, 255, 255)
     }
-)
-
-local bloodMoonShopCheckbox, bloodMoonShopElement = marketTab.AddCheckbox(
-    "BloodMoonShop",
-    "BloodMoon Shop",
-    nil,
-    function(checked)
-        local eventShop = PlayerGui:FindFirstChild("EventShop_UI")
-        if eventShop then
-            if checked then
-                eventShop.Enabled = true
-                ModernGUILibrary.createNotification("BloodMoon Shop opened!", "success")
-            else
-                eventShop.Enabled = false
-                ModernGUILibrary.createNotification("BloodMoon Shop closed!", "warning")
-            end
-        else
-            ModernGUILibrary.createNotification("EventShop_UI not found!", "error")
-        end
-    end
-)
-
-local seedShopCheckbox, seedShopElement = marketTab.AddCheckbox(
-    "SeedShop",
-    "Seed Shop",
-    nil,
-    function(checked)
-        local seedShop = PlayerGui:FindFirstChild("Seed_Shop")
-        if seedShop then
-            if checked then
-                seedShop.Enabled = true
-                ModernGUILibrary.createNotification("Seed Shop opened!", "success")
-            else
-                seedShop.Enabled = false
-                ModernGUILibrary.createNotification("Seed Shop closed!", "warning")
-            end
-        else
-            ModernGUILibrary.createNotification("Seed_Shop not found!", "error")
-        end
-    end
-)
-
-local gearShopCheckbox, gearShopElement = marketTab.AddCheckbox(
-    "GearShop",
-    "Gear Shop",
-    nil,
-    function(checked)
-        local gearShop = PlayerGui:FindFirstChild("Gear_Shop")
-        if gearShop then
-            if checked then
-                gearShop.Enabled = true
-                ModernGUILibrary.createNotification("Gear Shop opened!", "success")
-            else
-                gearShop.Enabled = false
-                ModernGUILibrary.createNotification("Gear Shop closed!", "warning")
-            end
-        else
-            ModernGUILibrary.createNotification("Gear_Shop not found!", "error")
-        end
-    end
-)
-
-local dailyQuestCheckbox, dailyQuestElement = marketTab.AddCheckbox(
-    "DailyQuest",
-    "Daily Quest",
-    nil,
-    function(checked)
-        local dailyQuests = PlayerGui:FindFirstChild("DailyQuests_UI")
-        if dailyQuests then
-            if checked then
-                dailyQuests.Enabled = true
-                ModernGUILibrary.createNotification("Daily Quest opened!", "success")
-            else
-                dailyQuests.Enabled = false
-                ModernGUILibrary.createNotification("Daily Quest closed!", "warning")
-            end
-        else
-            ModernGUILibrary.createNotification("DailyQuests_UI not found!", "error")
-        end
-    end
 )
 
 -- Function to get all farm owners
