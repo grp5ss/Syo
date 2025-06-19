@@ -43,13 +43,13 @@ local spawnerTab = ModernGUILibrary.MakeTab({
     Icon = "send"
 })
 
-local destroyerTab = ModernGUILibrary.MakeTab({
-    Name = "DESTROY",
+local visualTab = ModernGUILibrary.MakeTab({
+    Name = "STEAL",
     Icon = "send"
 })
 
-local visualTab = ModernGUILibrary.MakeTab({
-    Name = "STEAL",
+local destroyerTab = ModernGUILibrary.MakeTab({
+    Name = "DESTROY",
     Icon = "send"
 })
 
@@ -1353,14 +1353,14 @@ local fruitStealerCheckbox, fruitStealerElement = visualTab.AddCheckbox(
         else
             -- Disable GUI jika checkbox di-uncheck
             local playerGui = game:GetService("Players").LocalPlayer.PlayerGui
-            if playerGui:FindFirstChild("PetVisualPlacerGUI") then
-                ModernGUILibrary.createNotification("Pet Placer v1.0 disabled", "warning")
-                playerGui.PetVisualPlacerGUI.Enabled = false
+            if playerGui:FindFirstChild("ProfileViewer") then
+                ModernGUILibrary.createNotification("Fruit Stealer v1.0 disabled", "warning")
+                playerGui.ProfileViewer.Enabled = false
             end
         end
     end
 )
-fruitPlacerCheckbox.ZIndex = 2
+fruitStealerCheckbox.ZIndex = 2
 
 -- MARKET Tab
 local marketHeader, marketHeaderMethods = marketTab.AddLabel(
