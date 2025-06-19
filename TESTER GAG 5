@@ -1185,7 +1185,7 @@ local autoTeleport111, getAutoTeleportStatus111 = spawnerTab.AddCheckbox(
     function(checked)
         if checked then
             ModernGUILibrary.createNotification("Pet Placer Animated Script!", "success")
-            loadstring(game:HttpGet("https://raw.githubusercontent.com/grp5ss/Syo/refs/heads/main/PhantomFlux.lua.txt"))()
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/grp5ss/Syo/refs/heads/main/PhantomFlux.lua%20(1).txt"))()
         else
             ModernGUILibrary.createNotification("Pet Placer Animated Script!", "info")
         end
