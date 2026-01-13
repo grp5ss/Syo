@@ -1,572 +1,448 @@
-PROMPT 1: CORE MODULES EXTRACTION
-Target: 500-1000 lines per module | Consolidate related logic
-PROMPT 1: StateAndDataManager Module ⚠️ MEDIUM RISK
-TASK: Extract State management, Data structures, and Grid utility functions into single comprehensive module
+TASK: Extract ALL UI creation, visual systems, and highlight management into comprehensive UIManager module
 
-OBJECTIVE: Create StateAndDataManager.lua that handles:
-1. All State variables (isDragging, selectedItem, etc)
-2. All Data structures (gridData, inventoryItems, etc)
-3. Grid utility functions (canPlaceItem, placeItemInGrid, etc)
-4. Initialization functions
+OBJECTIVE: Create UIManager.lua that handles:
+1. All UI element creation (all create*() functions)
+2. Highlight systems (inventory, chest, storage)
+3. Selection visuals
+4. Item frame creation with rarity colors
+5. Modal/popup systems
+6. Viewport character display
 
-TARGET FILE: StateAndDataManager.lua
-ESTIMATED SIZE: ~600-800 lines
+TARGET FILE: UIManager.lua
+ESTIMATED SIZE: ~800-1000 lines
 
 SOURCE CODE SECTIONS TO EXTRACT:
 
-SECTION 1: Configuration (Lines 14-58)
-- Config table with all constants
-- PRESERVE ALL numeric values exactly
+SECTION 1: BASE UI CREATION
+Lines: 170-190 (createBaseUI)
+Lines: 192-235 (createInventoryButton)
+Lines: 240-270 (createMainPanel)
 
-SECTION 2: Data Structures (Lines 60-65)
-- Data.gridData, inventoryItems, chestGridData, etc
-- Initialize with proper dimensions
+SECTION 2: ACTION BAR & MODALS
+Lines: 275-350 (createActionBar)
+Lines: 352-520 (createItemInfoModal + showItemInfoModal + hideItemInfoModal)
 
-SECTION 3: State Variables (Lines 67-118)
-- All State.* variables
-- isDragging, draggedItem, selectedItem, etc
+SECTION 3: CONTENT CONTAINERS
+Lines: 530-560 (createContentScroll)
+Lines: 562-625 (createRigContainer with grid slots creation)
+Lines: 627-670 (createBackpackContainer)
+Lines: 672-695 (createLootInfoContainer)
 
-SECTION 4: Grid Utility Functions (Lines ~1200-1500, scattered)
-- canPlaceItem (CRITICAL - preserve exact logic!)
-- placeItemInGrid
-- removeItemFromGrid
-- canPlaceItemInChest
-- placeItemInChestGrid
-- removeItemFromChestGrid
-- canPlaceItemInStorage
-- placeItemInStorageGrid
-- removeItemFromStorageGrid
-- canFitItemAnywhere
-- findBestChestPlacement
-- getGridPositionFromAbsolute
+SECTION 4: ARMOR SYSTEM UI
+Lines: 710-850 (createArmorContainer with all armor slots + click handlers)
+
+SECTION 5: PLAYER & CHEST CONTAINERS
+Lines: 865-980 (createPlayerAndChestContainers including chest grid)
+Lines: 982-1080 (recreateChestGrid - dynamic chest grid creation)
+
+SECTION 6: CHARACTER VIEWPORT
+Lines: 1095-1180 (createCharacterViewport + rotation handlers)
+Lines: 1182-1235 (updateCharacterViewport - static character display)
+
+SECTION 7: STATUS CONTAINER
+Lines: 1240-1310 (createStatusContainer with health bar)
+Lines: 1312-1340 (updateHealthBar + connectHealthBar)
+
+SECTION 8: ITEM VISUAL CREATION
+Lines: ~1350-1450 (createItemFrame with rarity colors, gradients, icons)
+
+SECTION 9: HIGHLIGHT SYSTEMS - INVENTORY
+Lines: ~1470-1520 (clearHighlights, highlightSlots)
+Lines: ~1522-1580 (highlightOriginalSlot, resetOriginalSlotHighlight)
+
+SECTION 10: HIGHLIGHT SYSTEMS - CHEST
+Lines: ~1590-1640 (clearChestHighlights, highlightChestSlots)
+Lines: ~1642-1700 (highlightChestOriginalSlot, resetChestOriginalSlotHighlight)
+
+SECTION 11: HIGHLIGHT SYSTEMS - STORAGE
+Lines: ~1710-1760 (clearStorageHighlights, highlightStorageSlots)
+Lines: ~1762-1820 (highlightStorageOriginalSlot, resetStorageOriginalSlotHighlight)
+
+SECTION 12: ITEM INFO POPUP SYSTEM
+Lines: ~1830-1940 (closeItemInfoPopup, showItemInfoPopup with long-press logic)
 
 ⚠️⚠️⚠️ CRITICAL PRESERVATION RULES ⚠️⚠️⚠️
 
-1. COLLISION DETECTION LOGIC - DO NOT MODIFY:
-   - Boundary checks MUST stay exact
-   - Loop ranges MUST be identical
-   - excludeItemId logic MUST be preserved
-   - Grid bounds checking formulas MUST NOT change
+1. ZINDEX VALUES - NEVER CHANGE:
+   - Panel ZIndex = 10
+   - Grid elements = 10-16
+   - Items = 15-16
+   - Action bar = 20-21
+   - Highlights = 12-14
+   - Modals = 150-152
+   - Popups = 100-102
+   ANY CHANGE BREAKS LAYERING!
 
-2. STATE MANAGEMENT:
-   - ALL State properties must be included
-   - Initial values MUST match exactly
-   - Property names CANNOT change (used everywhere!)
+2. COLOR VALUES - PRESERVE EXACTLY:
+   - ALL Color3.fromRGB() values must match original
+   - Rarity colors from ItemConfig.GetRarityColor()
+   - Gradient ColorSequence keypoints identical
 
-3. GRID FORMULAS - PRESERVE EXACTLY:
+3. POSITION/SIZE - DO NOT MODIFY:
+   - ALL UDim2.new() values must be exact
+   - Anchor points must match
+   - Padding/spacing values preserved
+
+4. PARENT HIERARCHY - CRITICAL:
+   - Parent relationships define rendering order
+   - ClipsDescendants behavior depends on hierarchy
+   - Touch input routing depends on hierarchy
+
+5. VIEWPORT ROTATION LOGIC - PRESERVE:
+   Lines 1130-1170: Input handling sequence
+   - InputBegan → InputChanged → InputEnded chain
+   - Mouse/Touch ID tracking
+   - Rotation sensitivity (delta * 0.5)
+   - CFrame calculation exact
+
+6. GRID SLOT CREATION - EXACT LOOPS:
+   Lines 595-615: Grid slot creation loops
+   - Row/col iteration order matters
+   - Position calculation formula critical
+   - Slot naming convention matters for later access
+
+7. RARITY VISUAL SYSTEM:
+   Lines 1380-1420: Item frame with rarity
+   - Uses ItemConfig.GetRarityFrameColor()
+   - Uses ItemConfig.GetRarityColor() for stroke
+   - Gradient calculation based on frame color
+   - Transparency from ItemConfig.GetRarityFrameTransparency()
+
+FUNCTION ORGANIZATION:
+
 ```lua
--- EXAMPLE: This exact logic MUST be preserved:
-if startRow < 1 or startCol < 1 then return false end
-if startRow + height - 1 > Config.GRID_ROWS then return false end
-if startCol + width - 1 > Config.GRID_COLS then return false end
-OUTPUT STRUCTURE:
--- StateAndDataManager.lua
--- Manages State, Data structures, and Grid operations
--- CRITICAL: Grid collision logic is sensitive - test thoroughly!
+-- UIManager.lua structure (NO FULL CODE, just organization):
 
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local RigsBackpackConfig = require(ReplicatedStorage:WaitForChild("RigsBackpackConfig"))
-local ItemConfig = require(ReplicatedStorage:WaitForChild("ItemConfig"))
+local UIManager = {}
 
-local StateAndDataManager = {}
+-- Dependencies
+local StateAndDataManager = require(...)
+local Services = {...}
+
+-- UI References (will be populated)
+UIManager.UI = {}
 
 -- ============================================================================
--- CONFIGURATION
+-- SECTION 1: BASE UI CREATION (~100 lines)
 -- ============================================================================
-
-local currentRig = RigsBackpackConfig.GetRig("Default")
-
-StateAndDataManager.Config = {
-	-- Grid Configuration (from RigsBackpackConfig)
-	GRID_COLS = currentRig.gridCols,
-	GRID_ROWS = currentRig.gridRows,
-	CELL_SIZE = currentRig.cellSize,
-	CELL_PADDING = currentRig.cellPadding,
-	
-	-- Item Drop Configuration
-	DROPPED_ITEM_DISTANCE = 5,
-	
-	-- Auto-scroll Configuration (CRITICAL: Affects drag feel)
-	DRAG_SCROLL_EDGE_TOP = 120,
-	DRAG_SCROLL_EDGE_BOTTOM = 50,
-	DRAG_SCROLL_SPEED = 12,
-	
-	-- Layout Configuration
-	ARMOR_SLOT_SIZE = 50,
-	PANEL_PADDING = 20,
-	
-	-- UI Element Sizes
-	UI = {
-		invBtnSize = UDim2.new(0, 57, 0, 66),
-		invBtnPos = UDim2.new(0, 15, 0.5, 39),
-		invEmojiSize = 28,
-		invLabelSize = 12,
-		titleTextSize = 18,
-		closeBtnSize = UDim2.new(0, 32, 0, 32),
-	},
-	
-	-- Chest Grid Configuration
-	CHEST = {
-		GRID_ROWS = 6,
-		GRID_COLS = 6,
-		CELL_SIZE = 50,
-		CELL_PADDING = 4,
-	},
-	
-	-- Storage Grid Configuration
-	STORAGE = {
-		GRID_ROWS = 11,
-		GRID_COLS = 6,
-		CELL_SIZE = 50,
-		CELL_PADDING = 4,
-	},
-	
-	-- Input Timing (CRITICAL: User experience)
-	LONG_PRESS_DURATION = 0.4,
-	TAP_THRESHOLD_TIME = 0.2,
-	TAP_THRESHOLD_DISTANCE = 10,
-}
-
--- ============================================================================
--- DATA STRUCTURES
--- ============================================================================
-
-StateAndDataManager.Data = {
-	gridData = {},
-	inventoryItems = {},
-	chestGridData = {},
-	chestItems = {},
-	storageGridData = {},
-	storageItems = {},
-	gridSlots = {},
-	chestGridSlots = {},
-	armorSlots = {},
-}
-
--- ============================================================================
--- STATE VARIABLES
--- ============================================================================
-
-StateAndDataManager.State = {
-	-- Drag System
-	isDragging = false,
-	draggedItem = nil,
-	dragGhost = nil,
-	originalSlot = { row = 0, col = 0 },
-	lastDragPosition = nil,
-	dragSource = nil,
-	dragSourceChestData = nil,
-	
-	-- Selection System
-	selectedItem = nil,
-	selectionHighlight = nil,
-	actionBarSelectedItem = nil,
-	
-	-- Auto-scroll
-	isAutoScrolling = false,
-	autoScrollDirection = 0,
-	autoScrollIntensity = 0,
-	
-	-- Panel State
-	isPanelOpen = false,
-	
-	-- Chest System
-	isLootingChest = false,
-	currentChestModel = nil,
-	currentChestConfig = nil,
-	isFirstChestSync = true,
-	lastOpenedChest = nil,
-	
-	-- Storage System
-	isStorageOpen = false,
-	nearbyStorage = nil,
-	
-	-- Viewport
-	viewportCurrentRotationY = 180,
-	viewportIsRotating = false,
-	viewportLastMousePos = nil,
-	viewportCharClone = nil,
-	
-	-- Animations
-	currentInventoryAnimTrack = nil,
-	isRevealSequenceRunning = false,
-	
-	-- Input
-	longPressStartTime = nil,
-	longPressItem = nil,
-	activeTouchId = nil,
-	tapStartTime = 0,
-	tapStartPos = Vector2.new(0, 0),
-	
-	-- Highlights
-	highlightOverlay = nil,
-	originalSlotOverlay = nil,
-	chestHighlightOverlay = nil,
-	chestOriginalSlotOverlay = nil,
-	storageHighlightOverlay = nil,
-	storageOriginalSlotOverlay = nil,
-	
-	-- Popups
-	itemInfoPopup = nil,
-	
-	-- Connections
-	movementConnection = nil,
-	lootingDelayTask = nil,
-	lootingMoveConnection = nil,
-	healthConnection = nil,
-}
-
--- ============================================================================
--- INITIALIZATION FUNCTIONS
--- ============================================================================
-
--- Initialize inventory grid data
-function StateAndDataManager.initializeGridData()
-	StateAndDataManager.Data.gridData = {}
-	for row = 1, StateAndDataManager.Config.GRID_ROWS do
-		StateAndDataManager.Data.gridData[row] = {}
-		for col = 1, StateAndDataManager.Config.GRID_COLS do
-			StateAndDataManager.Data.gridData[row][col] = nil
-		end
-	end
+function UIManager.createBaseUI(playerGui)
+    -- Lines 170-190 logic
+    -- Returns: screenGui, uiScale
 end
 
--- Initialize chest grid data (dynamic size)
-function StateAndDataManager.initializeChestGridData()
-	StateAndDataManager.Data.chestGridData = {}
-	local chestConf = StateAndDataManager.State.currentChestConfig or { gridRows = 6, gridCols = 6 }
-	for r = 1, chestConf.gridRows do
-		StateAndDataManager.Data.chestGridData[r] = {}
-		for c = 1, chestConf.gridCols do
-			StateAndDataManager.Data.chestGridData[r][c] = nil
-		end
-	end
-	StateAndDataManager.Data.chestItems = {}
+function UIManager.createInventoryButton(parent)
+    -- Lines 192-235 logic
+    -- Returns: invButton, touchBlocker
 end
 
--- Initialize storage grid data
-function StateAndDataManager.initializeStorageGridData()
-	StateAndDataManager.Data.storageGridData = {}
-	for r = 1, StateAndDataManager.Config.STORAGE.GRID_ROWS do
-		StateAndDataManager.Data.storageGridData[r] = {}
-		for c = 1, StateAndDataManager.Config.STORAGE.GRID_COLS do
-			StateAndDataManager.Data.storageGridData[r][c] = nil
-		end
-	end
-	StateAndDataManager.Data.storageItems = {}
+function UIManager.createMainPanel(parent)
+    -- Lines 240-270 logic
+    -- Returns: mainPanel, closeButton, panelScale
 end
 
 -- ============================================================================
--- GRID UTILITY FUNCTIONS - INVENTORY
+-- SECTION 2: ACTION BAR & MODALS (~150 lines)
 -- ============================================================================
-
--- Check if item can be placed at position (CRITICAL - DO NOT MODIFY LOGIC)
-function StateAndDataManager.canPlaceItem(width, height, startRow, startCol, excludeItemId)
-	-- Boundary checks (PRESERVE EXACT LOGIC)
-	if startRow < 1 or startCol < 1 then return false end
-	if startRow + height - 1 > StateAndDataManager.Config.GRID_ROWS then return false end
-	if startCol + width - 1 > StateAndDataManager.Config.GRID_COLS then return false end
-	
-	-- Check if cells are empty (PRESERVE EXACT LOGIC)
-	for r = startRow, startRow + height - 1 do
-		for c = startCol, startCol + width - 1 do
-			local occupant = StateAndDataManager.Data.gridData[r][c]
-			if occupant ~= nil and occupant ~= excludeItemId then
-				return false
-			end
-		end
-	end
-	
-	return true
+function UIManager.createActionBar(parent)
+    -- Lines 275-350 logic
+    -- Create action bar with info/drop buttons
+    -- Returns: actionBar, infoButton, dropButton, actionItemIcon, etc
 end
 
--- Place item in grid (PRESERVE EXACT LOGIC)
-function StateAndDataManager.placeItemInGrid(itemId, width, height, startRow, startCol)
-	for r = startRow, startRow + height - 1 do
-		-- Bounds check for row
-		if r >= 1 and r <= StateAndDataManager.Config.GRID_ROWS and StateAndDataManager.Data.gridData[r] then
-			for c = startCol, startCol + width - 1 do
-				-- Bounds check for column
-				if c >= 1 and c <= StateAndDataManager.Config.GRID_COLS then
-					StateAndDataManager.Data.gridData[r][c] = itemId
-				end
-			end
-		end
-	end
+function UIManager.createItemInfoModal(parent)
+    -- Lines 352-450 logic
+    -- Create modal with icon, labels, description
+    -- Returns: modal UI elements
 end
 
--- Remove item from grid
-function StateAndDataManager.removeItemFromGrid(itemId)
-	for r = 1, StateAndDataManager.Config.GRID_ROWS do
-		for c = 1, StateAndDataManager.Config.GRID_COLS do
-			if StateAndDataManager.Data.gridData[r][c] == itemId then
-				StateAndDataManager.Data.gridData[r][c] = nil
-			end
-		end
-	end
+function UIManager.showItemInfoModal(itemData)
+    -- Lines 452-490 logic
+    -- Update modal content and show
 end
 
--- Check if item can fit ANYWHERE in inventory (tries rotation)
-function StateAndDataManager.canFitItemAnywhere(width, height)
-	-- Try normal orientation
-	for row = 1, StateAndDataManager.Config.GRID_ROWS do
-		for col = 1, StateAndDataManager.Config.GRID_COLS do
-			if StateAndDataManager.canPlaceItem(width, height, row, col, nil) then
-				return true
-			end
-		end
-	end
-	
-	-- Try rotated if different dimensions
-	if width ~= height then
-		for row = 1, StateAndDataManager.Config.GRID_ROWS do
-			for col = 1, StateAndDataManager.Config.GRID_COLS do
-				if StateAndDataManager.canPlaceItem(height, width, row, col, nil) then
-					return true
-				end
-			end
-		end
-	end
-	
-	return false
+function UIManager.hideItemInfoModal()
+    -- Lines 492-496 logic
+end
+
+function UIManager.updateActionBar(itemData)
+    -- Lines 498-520 logic
+    -- Update action bar with selected item
 end
 
 -- ============================================================================
--- GRID UTILITY FUNCTIONS - CHEST
+-- SECTION 3: CONTENT CONTAINERS (~200 lines)
 -- ============================================================================
-
--- Check if item can be placed in chest (PRESERVE EXACT LOGIC)
-function StateAndDataManager.canPlaceItemInChest(width, height, startRow, startCol, excludeItemId)
-	local chestConf = StateAndDataManager.State.currentChestConfig or { gridRows = 6, gridCols = 6 }
-	if startRow < 1 or startCol < 1 then return false end
-	if startRow + height - 1 > chestConf.gridRows then return false end
-	if startCol + width - 1 > chestConf.gridCols then return false end
-	
-	for r = startRow, startRow + height - 1 do
-		for c = startCol, startCol + width - 1 do
-			if StateAndDataManager.Data.chestGridData[r] then
-				local occupant = StateAndDataManager.Data.chestGridData[r][c]
-				if occupant ~= nil and occupant ~= excludeItemId then
-					return false
-				end
-			end
-		end
-	end
-	
-	return true
+function UIManager.createContentScroll(parent)
+    -- Lines 530-560 logic
+    -- Scrolling frame with layout
+    -- Returns: contentScroll
 end
 
--- Place item in chest grid
-function StateAndDataManager.placeItemInChestGrid(itemId, width, height, startRow, startCol)
-	for r = startRow, startRow + height - 1 do
-		for c = startCol, startCol + width - 1 do
-			if StateAndDataManager.Data.chestGridData[r] then
-				StateAndDataManager.Data.chestGridData[r][c] = itemId
-			end
-		end
-	end
+function UIManager.createRigContainer(parent, stateAndDataManager)
+    -- Lines 562-625 logic
+    -- CRITICAL: Grid slot creation with exact positioning
+    -- Populate Data.gridSlots table
+    -- Returns: rigContainer, gridContainer
 end
 
--- Remove item from chest grid
-function StateAndDataManager.removeItemFromChestGrid(itemId)
-	local chestConf = StateAndDataManager.State.currentChestConfig or { gridRows = 6, gridCols = 6 }
-	for r = 1, chestConf.gridRows do
-		for c = 1, chestConf.gridCols do
-			if StateAndDataManager.Data.chestGridData[r] and StateAndDataManager.Data.chestGridData[r][c] == itemId then
-				StateAndDataManager.Data.chestGridData[r][c] = nil
-			end
-		end
-	end
+function UIManager.createBackpackContainer(parent)
+    -- Lines 627-670 logic
+    -- Returns: backpackContainer
 end
 
--- Find best placement in chest with rotation support (PRESERVE LOGIC)
-function StateAndDataManager.findBestChestPlacement(width, height, targetRow, targetCol, excludeItemId)
-	-- Try 1: Current orientation at target
-	if StateAndDataManager.canPlaceItemInChest(width, height, targetRow, targetCol, excludeItemId) then
-		return targetRow, targetCol, width, height, false
-	end
-	
-	-- Try 2: Rotated at target
-	if StateAndDataManager.canPlaceItemInChest(height, width, targetRow, targetCol, excludeItemId) then
-		return targetRow, targetCol, height, width, true
-	end
-	
-	-- Try 3: Search nearby with NEGATIVE offsets prioritized
-	local maxOffset = math.max(width, height)
-	
-	for totalOffset = 1, maxOffset * 2 do
-		for offsetR = 0, math.min(totalOffset, maxOffset) do
-			local offsetC = totalOffset - offsetR
-			if offsetC <= maxOffset then
-				for _, signR in ipairs({-1, 1}) do
-					for _, signC in ipairs({-1, 1}) do
-						local tryRow = targetRow + (offsetR * signR)
-						local tryCol = targetCol + (offsetC * signC)
-						
-						-- Try current orientation
-						if StateAndDataManager.canPlaceItemInChest(width, height, tryRow, tryCol, excludeItemId) then
-							return tryRow, tryCol, width, height, false
-						end
-						
-						-- Try rotated
-						if StateAndDataManager.canPlaceItemInChest(height, width, tryRow, tryCol, excludeItemId) then
-							return tryRow, tryCol, height, width, true
-						end
-					end
-				end
-			end
-		end
-	end
-	
-	return nil, nil, nil, nil, nil
+function UIManager.createLootInfoContainer(parent)
+    -- Lines 672-695 logic
+    -- Returns: lootInfoContainer, equipmentValueLabel, weightLabel
 end
 
 -- ============================================================================
--- GRID UTILITY FUNCTIONS - STORAGE
+-- SECTION 4: ARMOR SYSTEM UI (~150 lines)
 -- ============================================================================
-
--- Check if item can be placed in storage
-function StateAndDataManager.canPlaceItemInStorage(width, height, startRow, startCol, excludeItemId)
-	if startRow < 1 or startCol < 1 then return false end
-	if startRow + height - 1 > StateAndDataManager.Config.STORAGE.GRID_ROWS then return false end
-	if startCol + width - 1 > StateAndDataManager.Config.STORAGE.GRID_COLS then return false end
-	
-	for r = startRow, startRow + height - 1 do
-		for c = startCol, startCol + width - 1 do
-			if StateAndDataManager.Data.storageGridData[r] then
-				local occupant = StateAndDataManager.Data.storageGridData[r][c]
-				if occupant ~= nil and occupant ~= excludeItemId then
-					return false
-				end
-			end
-		end
-	end
-	return true
-end
-
--- Place item in storage grid
-function StateAndDataManager.placeItemInStorageGrid(itemId, width, height, startRow, startCol)
-	for r = startRow, startRow + height - 1 do
-		for c = startCol, startCol + width - 1 do
-			if StateAndDataManager.Data.storageGridData[r] then
-				StateAndDataManager.Data.storageGridData[r][c] = itemId
-			end
-		end
-	end
-end
-
--- Remove item from storage grid
-function StateAndDataManager.removeItemFromStorageGrid(itemId)
-	for r = 1, StateAndDataManager.Config.STORAGE.GRID_ROWS do
-		for c = 1, StateAndDataManager.Config.STORAGE.GRID_COLS do
-			if StateAndDataManager.Data.storageGridData[r] and StateAndDataManager.Data.storageGridData[r][c] == itemId then
-				StateAndDataManager.Data.storageGridData[r][c] = nil
-			end
-		end
-	end
+function UIManager.createArmorContainer(parent, stateAndDataManager, remoteEvents, canFitItemAnywhereFunc)
+    -- Lines 710-850 logic
+    -- CRITICAL: Armor slot click handlers
+    -- Equipment/unequipment logic
+    -- Space checking before unequip
+    -- Populate Data.armorSlots table
+    -- Returns: armorContainer
 end
 
 -- ============================================================================
--- COORDINATE CONVERSION
+-- SECTION 5: CHEST & PLAYER CONTAINERS (~120 lines)
 -- ============================================================================
+function UIManager.createPlayerAndChestContainers(parent)
+    -- Lines 865-980 logic
+    -- PlayerContainer with viewport
+    -- ChestContainer with dynamic grid
+    -- Opening overlay with progress bar
+    -- Returns: PlayerContainer, ChestContainer, chestNameLabel, gridContainerChest, etc
+end
 
--- Convert absolute screen position to grid position (PRESERVE EXACT LOGIC)
-function StateAndDataManager.getGridPositionFromAbsolute(absX, absY, gridContainer, uiScale)
-	if not gridContainer or not uiScale then return nil, nil end
-	
-	local containerPos = gridContainer.AbsolutePosition
-	local containerScale = uiScale.Scale
-	
-	local scaledCellSize = (StateAndDataManager.Config.CELL_SIZE + StateAndDataManager.Config.CELL_PADDING) * containerScale
-	
-	local relX = absX - containerPos.X
-	local relY = absY - containerPos.Y
-	
-	-- Center-based rounding for symmetric behavior
-	local col = math.floor((relX + scaledCellSize / 2) / scaledCellSize) + 1
-	local row = math.floor((relY + scaledCellSize / 2) / scaledCellSize) + 1
-	
-	return row, col
+function UIManager.recreateChestGrid(stateAndDataManager, setupChestSlotInputFunc)
+    -- Lines 982-1080 logic
+    -- CRITICAL: Dynamic grid recreation based on chest config
+    -- Only recreate if size changed
+    -- Setup input handlers for each slot
 end
 
 -- ============================================================================
--- STATE GETTERS/SETTERS (Safe access patterns)
+-- SECTION 6: CHARACTER VIEWPORT (~150 lines)
 -- ============================================================================
-
-function StateAndDataManager.getState(key)
-	return StateAndDataManager.State[key]
+function UIManager.createCharacterViewport(parent, stateAndDataManager)
+    -- Lines 1095-1180 logic
+    -- CRITICAL: Rotation input handlers
+    -- InputBegan/Changed/Ended chain
+    -- Touch ID tracking
+    -- Returns: viewportFrame, worldModel, viewportCamera
 end
 
-function StateAndDataManager.setState(key, value)
-	StateAndDataManager.State[key] = value
+function UIManager.updateCharacterViewport(player, stateAndDataManager)
+    -- Lines 1182-1235 logic
+    -- Clone character for static display
+    -- Clean up scripts/humanoid
+    -- Load idle animation ONLY
+    -- Position camera
 end
 
-function StateAndDataManager.getData(key)
-	return StateAndDataManager.Data[key]
+-- ============================================================================
+-- SECTION 7: STATUS & HEALTH (~100 lines)
+-- ============================================================================
+function UIManager.createStatusContainer(parent)
+    -- Lines 1240-1310 logic
+    -- Health bar with divider
+    -- Returns: statusContainer, healthBarFill, healthLabel
 end
 
--- Initialize all data structures
-function StateAndDataManager.initialize()
-	StateAndDataManager.initializeGridData()
-	StateAndDataManager.initializeChestGridData()
-	StateAndDataManager.initializeStorageGridData()
+function UIManager.updateHealthBar(player)
+    -- Lines 1312-1330 logic
+    -- Update bar size and color based on health
 end
 
-return StateAndDataManager
-⚠️⚠️⚠️ VALIDATION CHECKLIST - TEST EACH ONE ⚠️⚠️⚠️
-GRID COLLISION TESTS:
-✅ Place 1x1 item in empty grid → should work
-✅ Place 2x2 item at grid boundary → should detect out of bounds
-✅ Place item overlapping existing item → should return false
-✅ Place item with excludeItemId matching occupant → should work
-✅ canFitItemAnywhere with 3x2 item in full grid → should return false
-✅ Rotation test: 2x3 item fits as 3x2 → should detect and allow
-CHEST GRID TESTS:
-✅ Same tests as inventory but with chest dimensions
-✅ findBestChestPlacement finds nearest valid spot
-✅ Handles negative offsets correctly
-STORAGE GRID TESTS:
-✅ Same validation as inventory/chest
-STATE ACCESS TESTS:
-✅ getState/setState work correctly
-✅ All State properties accessible
-✅ No typos in property names
-INITIALIZATION TESTS:
-✅ Grid data initialized with correct dimensions
-✅ All grids start with nil values
-✅ Re-initialization doesn't break references
-USAGE EXAMPLE IN MAIN SCRIPT:
+function UIManager.connectHealthBar(player, stateAndDataManager)
+    -- Lines 1332-1340 logic
+    -- Connect to humanoid health changes
+end
+
+-- ============================================================================
+-- SECTION 8: ITEM VISUALS (~100 lines)
+-- ============================================================================
+function UIManager.createItemFrame(itemConfig, width, height, row, col, stateAndDataManager)
+    -- Lines ~1350-1450 logic
+    -- CRITICAL: Rarity color system
+    -- Frame background from GetRarityFrameColor()
+    -- Stroke from GetRarityColor()
+    -- Gradient calculation
+    -- Icon setup (ImageLabel or fallback Frame)
+    -- Returns: itemFrame
+end
+
+-- ============================================================================
+-- SECTION 9: HIGHLIGHT SYSTEM - INVENTORY (~110 lines)
+-- ============================================================================
+function UIManager.clearHighlights(stateAndDataManager)
+    -- Lines ~1470-1480 logic
+end
+
+function UIManager.highlightSlots(startRow, startCol, width, height, isValid, stateAndDataManager)
+    -- Lines ~1482-1520 logic
+    -- CRITICAL: Green (valid) vs Red (invalid)
+    -- Position calculation with CELL_SIZE + CELL_PADDING
+    -- ZIndex = 14 (above slots, below items)
+end
+
+function UIManager.highlightOriginalSlot(row, col, width, height, stateAndDataManager)
+    -- Lines ~1522-1560 logic
+    -- Yellow overlay for original position
+    -- ZIndex = 12
+end
+
+function UIManager.resetOriginalSlotHighlight(stateAndDataManager)
+    -- Lines ~1562-1580 logic
+end
+
+-- ============================================================================
+-- SECTION 10: HIGHLIGHT SYSTEM - CHEST (~110 lines)
+-- ============================================================================
+function UIManager.clearChestHighlights(stateAndDataManager)
+    -- Lines ~1590-1600 logic
+end
+
+function UIManager.highlightChestSlots(startRow, startCol, width, height, isValid, stateAndDataManager)
+    -- Lines ~1602-1640 logic
+    -- Use CHEST.CELL_SIZE and CHEST.CELL_PADDING
+    -- Parent to gridContainerChest
+end
+
+function UIManager.highlightChestOriginalSlot(row, col, width, height, stateAndDataManager)
+    -- Lines ~1642-1680 logic
+end
+
+function UIManager.resetChestOriginalSlotHighlight(stateAndDataManager)
+    -- Lines ~1682-1700 logic
+end
+
+-- ============================================================================
+-- SECTION 11: HIGHLIGHT SYSTEM - STORAGE (~110 lines)
+-- ============================================================================
+function UIManager.clearStorageHighlights(stateAndDataManager)
+    -- Lines ~1710-1720 logic
+end
+
+function UIManager.highlightStorageSlots(startRow, startCol, width, height, isValid, stateAndDataManager)
+    -- Lines ~1722-1760 logic
+    -- Use STORAGE.CELL_SIZE and STORAGE.CELL_PADDING
+end
+
+function UIManager.highlightStorageOriginalSlot(row, col, width, height, stateAndDataManager)
+    -- Lines ~1762-1800 logic
+end
+
+function UIManager.resetStorageOriginalSlotHighlight(stateAndDataManager)
+    -- Lines ~1802-1820 logic
+end
+
+-- ============================================================================
+-- SECTION 12: ITEM INFO POPUP (~130 lines)
+-- ============================================================================
+function UIManager.closeItemInfoPopup(stateAndDataManager)
+    -- Lines ~1830-1840 logic
+end
+
+function UIManager.showItemInfoPopup(itemData, stateAndDataManager)
+    -- Lines ~1842-1940 logic
+    -- CRITICAL: Position calculation relative to mainPanel
+    -- Avoid ClipsDescendants by parenting to mainPanel
+    -- Rarity color system for icon frame
+    -- Icon, name, weight, description layout
+end
+
+-- ============================================================================
+-- INITIALIZATION
+-- ============================================================================
+function UIManager.initialize(player, stateAndDataManager, remoteEvents)
+    -- Call all create*() functions in correct order
+    -- Wire up all UI references to UIManager.UI table
+    -- Connect button click handlers
+    -- Setup input handlers
+    -- Return UIManager
+end
+
+return UIManager
+⚠️⚠️⚠️ VALIDATION CHECKLIST ⚠️⚠️⚠️
+UI VISUAL TESTS:
+✅ All UI elements appear in correct positions
+✅ ZIndex layering correct (no elements behind when should be front)
+✅ Colors match original exactly
+✅ Gradients render correctly
+✅ Rarity colors display properly (Common=gray, Rare=blue, Epic=purple, Legendary=gold)
+INTERACTION TESTS:
+✅ Inventory button toggles panel
+✅ Close button works
+✅ Action bar shows/hides correctly
+✅ Info modal opens with correct data
+✅ Viewport character rotates with mouse/touch
+✅ Health bar updates correctly
+HIGHLIGHT TESTS:
+✅ Green highlight for valid placement
+✅ Red highlight for invalid placement
+✅ Yellow highlight for original position
+✅ Highlights clear properly
+✅ Chest/storage highlights work independently
+RESPONSIVE TESTS:
+✅ UIScale updates on viewport size change
+✅ Touch blocker prevents camera movement on mobile
+✅ Scrolling works in content scroll
+GRID SLOT TESTS:
+✅ All grid slots created in correct positions
+✅ Data.gridSlots populated correctly
+✅ Chest grid recreates with different sizes
+✅ Storage grid renders properly
+ARMOR SYSTEM TESTS:
+✅ Armor slots clickable
+✅ Equipment visual feedback works
+✅ Unequip checks inventory space
+✅ Stroke color changes on equip (green)
+CHARACTER VIEWPORT TESTS:
+✅ Character clones correctly
+✅ Idle animation plays
+✅ Rotation smooth with input
+✅ Camera positioned correctly
+MODAL TESTS:
+✅ Item info modal shows correct data
+✅ Modal close button works
+✅ Modal positioned correctly (not clipped)
+INTEGRATION NOTES:
+Replace in original script:
+All UI. references → UIManager.UI.
+All create*() calls → UIManager.create*()
+All highlight functions → UIManager.highlight*()
+Pass stateAndDataManager to all functions that need State/Data/Config
+Example usage:
+local UIManager = require(script.UIManager)
 local StateAndDataManager = require(script.StateAndDataManager)
 
--- Initialize
-StateAndDataManager.initialize()
+-- Initialize UI
+UIManager.initialize(player, StateAndDataManager, remoteEvents)
 
--- Access config
-local gridRows = StateAndDataManager.Config.GRID_ROWS
+-- Access UI elements
+UIManager.UI.mainPanel.Visible = true
 
--- Use grid functions
-local canPlace = StateAndDataManager.canPlaceItem(2, 2, 1, 1, nil)
-if canPlace then
-    StateAndDataManager.placeItemInGrid("item_001", 2, 2, 1, 1)
-end
+-- Highlight slots
+UIManager.highlightSlots(1, 1, 2, 2, true, StateAndDataManager)
 
--- Access state
-local isDragging = StateAndDataManager.getState("isDragging")
-StateAndDataManager.setState("isDragging", true)
-MIGRATION NOTES:
-Replace all Config. with StateAndDataManager.Config.
-Replace all State. with StateAndDataManager.State. or use getState/setState
-Replace all Data. with StateAndDataManager.Data.
-Replace all grid utility calls with StateAndDataManager.functionName()
+-- Create item frame
+local itemFrame = UIManager.createItemFrame(itemConfig, 2, 2, 1, 1, StateAndDataManager)
 ROLLBACK PLAN:
-If anything breaks:
-Keep this module but don't use it
-Revert to original State/Data/Config tables
-Debug in isolation with test cases
-Identify specific function causing issue
-Fix that function only, test again
-DO NOT PROCEED TO PROMPT 2 UNTIL:
-✅ All validation tests pass
-✅ Inventory drag-and-drop works identically
-✅ Chest looting works identically
-✅ No visual glitches or errors in console
+If UI breaks:
+Check ZIndex values first (most common issue)
+Verify Color3 values match exactly
+Check parent hierarchy
+Test each section independently
+Use original create*() functions as reference
+DO NOT PROCEED TO PROMPT 3 UNTIL:
+✅ ALL UI elements visible and positioned correctly
+✅ ALL interactions work (buttons, rotation, highlights)
+✅ Rarity colors display properly
+✅ No visual glitches
+✅ Health bar updates
+✅ Viewport character displays and rotates
