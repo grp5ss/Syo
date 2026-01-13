@@ -1,448 +1,684 @@
-TASK: Extract ALL UI creation, visual systems, and highlight management into comprehensive UIManager module
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local Lighting = game:GetService("Lighting")
 
-OBJECTIVE: Create UIManager.lua that handles:
-1. All UI element creation (all create*() functions)
-2. Highlight systems (inventory, chest, storage)
-3. Selection visuals
-4. Item frame creation with rarity colors
-5. Modal/popup systems
-6. Viewport character display
-
-TARGET FILE: UIManager.lua
-ESTIMATED SIZE: ~800-1000 lines
-
-SOURCE CODE SECTIONS TO EXTRACT:
-
-SECTION 1: BASE UI CREATION
-Lines: 170-190 (createBaseUI)
-Lines: 192-235 (createInventoryButton)
-Lines: 240-270 (createMainPanel)
-
-SECTION 2: ACTION BAR & MODALS
-Lines: 275-350 (createActionBar)
-Lines: 352-520 (createItemInfoModal + showItemInfoModal + hideItemInfoModal)
-
-SECTION 3: CONTENT CONTAINERS
-Lines: 530-560 (createContentScroll)
-Lines: 562-625 (createRigContainer with grid slots creation)
-Lines: 627-670 (createBackpackContainer)
-Lines: 672-695 (createLootInfoContainer)
-
-SECTION 4: ARMOR SYSTEM UI
-Lines: 710-850 (createArmorContainer with all armor slots + click handlers)
-
-SECTION 5: PLAYER & CHEST CONTAINERS
-Lines: 865-980 (createPlayerAndChestContainers including chest grid)
-Lines: 982-1080 (recreateChestGrid - dynamic chest grid creation)
-
-SECTION 6: CHARACTER VIEWPORT
-Lines: 1095-1180 (createCharacterViewport + rotation handlers)
-Lines: 1182-1235 (updateCharacterViewport - static character display)
-
-SECTION 7: STATUS CONTAINER
-Lines: 1240-1310 (createStatusContainer with health bar)
-Lines: 1312-1340 (updateHealthBar + connectHealthBar)
-
-SECTION 8: ITEM VISUAL CREATION
-Lines: ~1350-1450 (createItemFrame with rarity colors, gradients, icons)
-
-SECTION 9: HIGHLIGHT SYSTEMS - INVENTORY
-Lines: ~1470-1520 (clearHighlights, highlightSlots)
-Lines: ~1522-1580 (highlightOriginalSlot, resetOriginalSlotHighlight)
-
-SECTION 10: HIGHLIGHT SYSTEMS - CHEST
-Lines: ~1590-1640 (clearChestHighlights, highlightChestSlots)
-Lines: ~1642-1700 (highlightChestOriginalSlot, resetChestOriginalSlotHighlight)
-
-SECTION 11: HIGHLIGHT SYSTEMS - STORAGE
-Lines: ~1710-1760 (clearStorageHighlights, highlightStorageSlots)
-Lines: ~1762-1820 (highlightStorageOriginalSlot, resetStorageOriginalSlotHighlight)
-
-SECTION 12: ITEM INFO POPUP SYSTEM
-Lines: ~1830-1940 (closeItemInfoPopup, showItemInfoPopup with long-press logic)
-
-⚠️⚠️⚠️ CRITICAL PRESERVATION RULES ⚠️⚠️⚠️
-
-1. ZINDEX VALUES - NEVER CHANGE:
-   - Panel ZIndex = 10
-   - Grid elements = 10-16
-   - Items = 15-16
-   - Action bar = 20-21
-   - Highlights = 12-14
-   - Modals = 150-152
-   - Popups = 100-102
-   ANY CHANGE BREAKS LAYERING!
-
-2. COLOR VALUES - PRESERVE EXACTLY:
-   - ALL Color3.fromRGB() values must match original
-   - Rarity colors from ItemConfig.GetRarityColor()
-   - Gradient ColorSequence keypoints identical
-
-3. POSITION/SIZE - DO NOT MODIFY:
-   - ALL UDim2.new() values must be exact
-   - Anchor points must match
-   - Padding/spacing values preserved
-
-4. PARENT HIERARCHY - CRITICAL:
-   - Parent relationships define rendering order
-   - ClipsDescendants behavior depends on hierarchy
-   - Touch input routing depends on hierarchy
-
-5. VIEWPORT ROTATION LOGIC - PRESERVE:
-   Lines 1130-1170: Input handling sequence
-   - InputBegan → InputChanged → InputEnded chain
-   - Mouse/Touch ID tracking
-   - Rotation sensitivity (delta * 0.5)
-   - CFrame calculation exact
-
-6. GRID SLOT CREATION - EXACT LOOPS:
-   Lines 595-615: Grid slot creation loops
-   - Row/col iteration order matters
-   - Position calculation formula critical
-   - Slot naming convention matters for later access
-
-7. RARITY VISUAL SYSTEM:
-   Lines 1380-1420: Item frame with rarity
-   - Uses ItemConfig.GetRarityFrameColor()
-   - Uses ItemConfig.GetRarityColor() for stroke
-   - Gradient calculation based on frame color
-   - Transparency from ItemConfig.GetRarityFrameTransparency()
-
-FUNCTION ORGANIZATION:
-
-```lua
--- UIManager.lua structure (NO FULL CODE, just organization):
+local ItemConfig = require(ReplicatedStorage:WaitForChild("ItemConfig"))
 
 local UIManager = {}
-
--- Dependencies
-local StateAndDataManager = require(...)
-local Services = {...}
-
--- UI References (will be populated)
 UIManager.UI = {}
 
--- ============================================================================
--- SECTION 1: BASE UI CREATION (~100 lines)
--- ============================================================================
-function UIManager.createBaseUI(playerGui)
-    -- Lines 170-190 logic
-    -- Returns: screenGui, uiScale
+function UIManager.createBaseUI(playerGui, Services)
+	local UI = UIManager.UI
+	
+	UI.screenGui = Instance.new("ScreenGui")
+	UI.screenGui.Name = "GridInventoryUI"
+	UI.screenGui.ResetOnSpawn = false
+	UI.screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	UI.screenGui.IgnoreGuiInset = true
+	UI.screenGui.DisplayOrder = 100
+	UI.screenGui.Parent = playerGui
+
+	UI.uiScale = Instance.new("UIScale")
+	UI.uiScale.Name = "ResponsiveScale"
+	UI.uiScale.Scale = 1
+	UI.uiScale.Parent = UI.screenGui
+
+	local function updateScale()
+		local camera = workspace.CurrentCamera
+		if not camera then return end
+		local viewport = camera.ViewportSize
+		local minDimension = math.min(viewport.X, viewport.Y)
+		local scale = math.clamp(minDimension / 700, 0.7, 1.3)
+		UI.uiScale.Scale = scale
+	end
+
+	workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(updateScale)
+	task.spawn(updateScale)
+	
+	UI.blurEffect = Lighting:FindFirstChild("Blur")
+	
+	return UI.screenGui, UI.uiScale
 end
 
-function UIManager.createInventoryButton(parent)
-    -- Lines 192-235 logic
-    -- Returns: invButton, touchBlocker
+function UIManager.createInventoryButton(Config)
+	local UI = UIManager.UI
+	
+	UI.invButton = Instance.new("TextButton")
+	UI.invButton.Name = "InventoryButton"
+	UI.invButton.Size = Config.UI.invBtnSize
+	UI.invButton.Position = Config.UI.invBtnPos
+	UI.invButton.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+	UI.invButton.BorderSizePixel = 0
+	UI.invButton.Text = ""
+	UI.invButton.Parent = UI.screenGui
+
+	local invCorner = Instance.new("UICorner")
+	invCorner.CornerRadius = UDim.new(0, 10)
+	invCorner.Parent = UI.invButton
+
+	local invStroke = Instance.new("UIStroke")
+	invStroke.Color = Color3.fromRGB(139, 92, 246)
+	invStroke.Thickness = 2
+	invStroke.Parent = UI.invButton
+
+	local invEmoji = Instance.new("TextLabel")
+	invEmoji.Size = UDim2.new(1, 0, 0, 40)
+	invEmoji.Position = UDim2.new(0, 0, 0, 2)
+	invEmoji.BackgroundTransparency = 1
+	invEmoji.Text = "ðŸ“¦"
+	invEmoji.TextSize = Config.UI.invEmojiSize
+	invEmoji.Font = Enum.Font.GothamBold
+	invEmoji.Parent = UI.invButton
+
+	local invLabel = Instance.new("TextLabel")
+	invLabel.Size = UDim2.new(1, 0, 0, 20)
+	invLabel.Position = UDim2.new(0, 0, 0, 42)
+	invLabel.BackgroundTransparency = 1
+	invLabel.Text = "BAG"
+	invLabel.TextColor3 = Color3.new(1, 1, 1)
+	invLabel.TextSize = Config.UI.invLabelSize
+	invLabel.Font = Enum.Font.GothamBold
+	invLabel.Parent = UI.invButton
+
+	UI.touchBlocker = Instance.new("Frame")
+	UI.touchBlocker.Name = "TouchBlocker"
+	UI.touchBlocker.Size = UDim2.new(1, 0, 1, 0)
+	UI.touchBlocker.Position = UDim2.new(0, 0, 0, 0)
+	UI.touchBlocker.BackgroundColor3 = Color3.new(0, 0, 0)
+	UI.touchBlocker.BackgroundTransparency = 0.5
+	UI.touchBlocker.BorderSizePixel = 0
+	UI.touchBlocker.Visible = false
+	UI.touchBlocker.ZIndex = 9
+	UI.touchBlocker.Active = true
+	UI.touchBlocker.Parent = UI.screenGui
+	
+	return UI.invButton, UI.touchBlocker
 end
 
-function UIManager.createMainPanel(parent)
-    -- Lines 240-270 logic
-    -- Returns: mainPanel, closeButton, panelScale
+function UIManager.createMainPanel(Config)
+	local UI = UIManager.UI
+	
+	UI.mainPanel = Instance.new("Frame")
+	UI.mainPanel.Name = "MainPanel"
+	UI.mainPanel.Size = UDim2.new(1, 0, 1, 0)
+	UI.mainPanel.Position = UDim2.new(0, 0, 0, 0)
+	UI.mainPanel.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+	UI.mainPanel.BorderSizePixel = 0
+	UI.mainPanel.Visible = false
+	UI.mainPanel.ZIndex = 10
+	UI.mainPanel.ClipsDescendants = true
+	UI.mainPanel.Parent = UI.screenGui
+
+	UI.panelScale = Instance.new("UIScale")
+	UI.panelScale.Scale = 0.8
+	UI.panelScale.Parent = UI.mainPanel
+
+	local panelGradient = Instance.new("UIGradient")
+	panelGradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.new(1, 1, 1)),
+		ColorSequenceKeypoint.new(0.3, Color3.fromRGB(30, 30, 40)),
+		ColorSequenceKeypoint.new(1, Color3.new(0, 0, 0)),
+	})
+	panelGradient.Rotation = 90
+	panelGradient.Parent = UI.mainPanel
+
+	local panelBackgroundImage = Instance.new("ImageLabel")
+	panelBackgroundImage.Name = "BackgroundImage"
+	panelBackgroundImage.Size = UDim2.new(1, 0, 1, 0)
+	panelBackgroundImage.Position = UDim2.new(0, 0, 0, 0)
+	panelBackgroundImage.BackgroundTransparency = 1
+	panelBackgroundImage.Image = "rbxassetid://115143845524149"
+	panelBackgroundImage.ScaleType = Enum.ScaleType.Stretch
+	panelBackgroundImage.ZIndex = 1
+	panelBackgroundImage.Parent = UI.mainPanel
+
+	UI.closeButton = Instance.new("TextButton")
+	UI.closeButton.Name = "CloseButton"
+	UI.closeButton.Size = Config.UI.closeBtnSize
+	UI.closeButton.Position = UDim2.new(1, -42, 0, 8)
+	UI.closeButton.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+	UI.closeButton.BackgroundTransparency = 1
+	UI.closeButton.BorderSizePixel = 0
+	UI.closeButton.Text = "X"
+	UI.closeButton.TextColor3 = Color3.new(1, 1, 1)
+	UI.closeButton.TextSize = 16
+	UI.closeButton.Font = Enum.Font.GothamBold
+	UI.closeButton.ZIndex = 11
+	UI.closeButton.Parent = UI.mainPanel
+
+	local closeCorner = Instance.new("UICorner")
+	closeCorner.CornerRadius = UDim.new(0, 8)
+	closeCorner.Parent = UI.closeButton
+	
+	return UI.mainPanel, UI.closeButton, UI.panelScale
 end
 
--- ============================================================================
--- SECTION 2: ACTION BAR & MODALS (~150 lines)
--- ============================================================================
-function UIManager.createActionBar(parent)
-    -- Lines 275-350 logic
-    -- Create action bar with info/drop buttons
-    -- Returns: actionBar, infoButton, dropButton, actionItemIcon, etc
+function UIManager.createActionBar()
+	local UI = UIManager.UI
+	
+	UI.actionBar = Instance.new("Frame")
+	UI.actionBar.Name = "ActionBar"
+	UI.actionBar.Size = UDim2.new(1, -20, 0, 50)
+	UI.actionBar.Position = UDim2.new(0, 10, 1, -60)
+	UI.actionBar.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+	UI.actionBar.BorderSizePixel = 0
+	UI.actionBar.ZIndex = 20
+	UI.actionBar.Visible = false
+	UI.actionBar.Parent = UI.mainPanel
+
+	local actionBarCorner = Instance.new("UICorner")
+	actionBarCorner.CornerRadius = UDim.new(0, 8)
+	actionBarCorner.Parent = UI.actionBar
+
+	local actionBarStroke = Instance.new("UIStroke")
+	actionBarStroke.Color = Color3.fromRGB(80, 80, 120)
+	actionBarStroke.Thickness = 2
+	actionBarStroke.Parent = UI.actionBar
+
+	UI.actionItemIcon = Instance.new("ImageLabel")
+	UI.actionItemIcon.Name = "ItemIcon"
+	UI.actionItemIcon.Size = UDim2.new(0, 40, 0, 40)
+	UI.actionItemIcon.Position = UDim2.new(0, 8, 0.5, -20)
+	UI.actionItemIcon.BackgroundColor3 = ItemConfig.GetRarityFrameColor("Common")
+	UI.actionItemIcon.BackgroundTransparency = ItemConfig.GetRarityFrameTransparency()
+	UI.actionItemIcon.BorderSizePixel = 0
+	UI.actionItemIcon.Image = ""
+	UI.actionItemIcon.ScaleType = Enum.ScaleType.Fit
+	UI.actionItemIcon.ZIndex = 21
+	UI.actionItemIcon.Parent = UI.actionBar
+	
+	UI.actionIconStroke = Instance.new("UIStroke")
+	UI.actionIconStroke.Name = "IconStroke"
+	UI.actionIconStroke.Color = ItemConfig.GetRarityColor("Common")
+	UI.actionIconStroke.Thickness = 1
+	UI.actionIconStroke.Parent = UI.actionItemIcon
+
+	UI.actionNameLabel = Instance.new("TextLabel")
+	UI.actionNameLabel.Name = "NameLabel"
+	UI.actionNameLabel.Size = UDim2.new(0.4, -60, 0, 20)
+	UI.actionNameLabel.Position = UDim2.new(0, 55, 0.5, -10)
+	UI.actionNameLabel.BackgroundTransparency = 1
+	UI.actionNameLabel.Text = "Item Name"
+	UI.actionNameLabel.TextColor3 = Color3.new(1, 1, 1)
+	UI.actionNameLabel.TextXAlignment = Enum.TextXAlignment.Left
+	UI.actionNameLabel.TextSize = 13
+	UI.actionNameLabel.Font = Enum.Font.GothamBold
+	UI.actionNameLabel.ZIndex = 21
+	UI.actionNameLabel.Parent = UI.actionBar
+
+	UI.infoButton = Instance.new("TextButton")
+	UI.infoButton.Name = "InfoButton"
+	UI.infoButton.Size = UDim2.new(0, 80, 0, 32)
+	UI.infoButton.Position = UDim2.new(1, -185, 0.5, -16)
+	UI.infoButton.BackgroundColor3 = Color3.fromRGB(40, 40, 80)
+	UI.infoButton.BorderSizePixel = 0
+	UI.infoButton.Text = "INFO"
+	UI.infoButton.TextColor3 = Color3.new(1, 1, 1)
+	UI.infoButton.TextSize = 12
+	UI.infoButton.Font = Enum.Font.GothamBold
+	UI.infoButton.ZIndex = 21
+	UI.infoButton.Parent = UI.actionBar
+
+	UI.infoStroke = Instance.new("UIStroke")
+	UI.infoStroke.Color = Color3.new(1, 1, 1)
+	UI.infoStroke.Thickness = 1
+	UI.infoStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	UI.infoStroke.Parent = UI.infoButton
+
+	local infoCorner = Instance.new("UICorner")
+	infoCorner.CornerRadius = UDim.new(0, 6)
+	infoCorner.Parent = UI.infoButton
+	
+	UI.infoButton:SetAttribute("Button", true)
+
+	UI.dropButton = Instance.new("TextButton")
+	UI.dropButton.Name = "DropButton"
+	UI.dropButton.Size = UDim2.new(0, 70, 0, 34)
+	UI.dropButton.Position = UDim2.new(1, -82, 0.5, -17)
+	UI.dropButton.BackgroundTransparency = 1
+	UI.dropButton.BorderSizePixel = 0
+	UI.dropButton.Text = "ðŸ—‘ï¸ DROP"
+	UI.dropButton.TextColor3 = Color3.new(1, 1, 1)
+	UI.dropButton.TextSize = 12
+	UI.dropButton.Font = Enum.Font.GothamBold
+	UI.dropButton.ZIndex = 21
+	UI.dropButton.Parent = UI.actionBar
+
+	UI.dropStroke = Instance.new("UIStroke")
+	UI.dropStroke.Color = Color3.new(1, 1, 1)
+	UI.dropStroke.Thickness = 1
+	UI.dropStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	UI.dropStroke.Parent = UI.dropButton
+
+	local dropCorner = Instance.new("UICorner")
+	dropCorner.CornerRadius = UDim.new(0, 6)
+	dropCorner.Parent = UI.dropButton
+	
+	UI.dropButton:SetAttribute("Button", true)
+	
+	return UI.actionBar, UI.infoButton, UI.dropButton
 end
 
-function UIManager.createItemInfoModal(parent)
-    -- Lines 352-450 logic
-    -- Create modal with icon, labels, description
-    -- Returns: modal UI elements
+function UIManager.createContentScroll()
+	local UI = UIManager.UI
+	
+	UI.contentScroll = Instance.new("ScrollingFrame")
+	UI.contentScroll.Name = "ContentScroll"
+	UI.contentScroll.Size = UDim2.new(0.47, 0, 1, -60)
+	UI.contentScroll.Position = UDim2.new(0, 0, 0, 50)
+	UI.contentScroll.BackgroundTransparency = 1
+	UI.contentScroll.BorderSizePixel = 0
+	UI.contentScroll.ScrollBarThickness = 8
+	UI.contentScroll.ScrollBarImageColor3 = Color3.fromRGB(100, 100, 130)
+	UI.contentScroll.ScrollBarImageTransparency = 1
+	UI.contentScroll.CanvasSize = UDim2.new(0, 0, 0, 1150)
+	UI.contentScroll.VerticalScrollBarPosition = Enum.VerticalScrollBarPosition.Left
+	UI.contentScroll.ZIndex = 10
+	UI.contentScroll.Parent = UI.mainPanel
+
+	local contentLayout = Instance.new("UIListLayout")
+	contentLayout.Name = "ContentLayout"
+	contentLayout.SortOrder = Enum.SortOrder.Name
+	contentLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	contentLayout.VerticalAlignment = Enum.VerticalAlignment.Top
+	contentLayout.Padding = UDim.new(0, 20)
+	contentLayout.Parent = UI.contentScroll
+
+	local topDivider = Instance.new("Frame")
+	topDivider.Name = "00_TopDivider"
+	topDivider.Size = UDim2.new(1, -40, 0, 10)
+	topDivider.BackgroundTransparency = 1
+	topDivider.BorderSizePixel = 0
+	topDivider.ZIndex = 11
+	topDivider.Parent = UI.contentScroll
+	
+	return UI.contentScroll
 end
 
-function UIManager.showItemInfoModal(itemData)
-    -- Lines 452-490 logic
-    -- Update modal content and show
+function UIManager.createRigContainer(Config, Data)
+	local UI = UIManager.UI
+	
+	UI.rigContainer = Instance.new("Frame")
+	UI.rigContainer.Name = "2_RigContainer"
+	UI.rigContainer.Size = UDim2.new(1, -20, 0, 470)
+	UI.rigContainer.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+	UI.rigContainer.BackgroundTransparency = 0.5
+	UI.rigContainer.BorderSizePixel = 0
+	UI.rigContainer.ZIndex = 10
+	UI.rigContainer.Parent = UI.contentScroll
+
+	local rigContainerCorner = Instance.new("UICorner")
+	rigContainerCorner.CornerRadius = UDim.new(0, 8)
+	rigContainerCorner.Parent = UI.rigContainer
+
+	local rigContainerStroke = Instance.new("UIStroke")
+	rigContainerStroke.Color = Color3.fromRGB(70, 70, 100)
+	rigContainerStroke.Thickness = 1
+	rigContainerStroke.Parent = UI.rigContainer
+
+	local rigTitle = Instance.new("TextLabel")
+	rigTitle.Name = "RigTitle"
+	rigTitle.Size = UDim2.new(0, 140, 0, 25)
+	rigTitle.Position = UDim2.new(1, -150, 0, 8)
+	rigTitle.BackgroundTransparency = 1
+	rigTitle.Text = "Chest Rig Slot"
+	rigTitle.TextColor3 = Color3.fromRGB(200, 200, 220)
+	rigTitle.TextXAlignment = Enum.TextXAlignment.Right
+	rigTitle.TextSize = 14
+	rigTitle.Font = Enum.Font.GothamBold
+	rigTitle.ZIndex = 11
+	rigTitle.Parent = UI.rigContainer
+
+	UI.rigEquipSlot = Instance.new("Frame")
+	UI.rigEquipSlot.Name = "RigEquipSlot"
+	UI.rigEquipSlot.Size = UDim2.new(0.15, 0, 0.15, 0)
+	UI.rigEquipSlot.Position = UDim2.new(0.02, 0, 0.1, 0)
+	UI.rigEquipSlot.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+	UI.rigEquipSlot.BorderSizePixel = 0
+	UI.rigEquipSlot.ZIndex = 11
+	UI.rigEquipSlot.Parent = UI.rigContainer
+
+	local rigEquipStroke = Instance.new("UIStroke")
+	rigEquipStroke.Color = Color3.fromRGB(80, 80, 120)
+	rigEquipStroke.Thickness = 1
+	rigEquipStroke.Parent = UI.rigEquipSlot
+
+	UI.rigEquipIcon = Instance.new("ImageLabel")
+	UI.rigEquipIcon.Name = "RigEquipIcon"
+	UI.rigEquipIcon.Size = UDim2.new(0.85, 0, 0.85, 0)
+	UI.rigEquipIcon.Position = UDim2.new(0.075, 0, 0.075, 0)
+	UI.rigEquipIcon.BackgroundTransparency = 1
+	UI.rigEquipIcon.Image = "rbxassetid://128194988776053"
+	UI.rigEquipIcon.ImageColor3 = Color3.fromRGB(150, 150, 180)
+	UI.rigEquipIcon.ImageTransparency = 0.5
+	UI.rigEquipIcon.ScaleType = Enum.ScaleType.Fit
+	UI.rigEquipIcon.ZIndex = 12
+	UI.rigEquipIcon.Parent = UI.rigEquipSlot
+
+	UI.gridContainer = Instance.new("Frame")
+	UI.gridContainer.Name = "GridContainer"
+	UI.gridContainer.Size = UDim2.new(0, (Config.CELL_SIZE + Config.CELL_PADDING) * Config.GRID_COLS, 0, (Config.CELL_SIZE + Config.CELL_PADDING) * Config.GRID_ROWS)
+	UI.gridContainer.Position = UDim2.new(0.5, 0, 0, 55)
+	UI.gridContainer.AnchorPoint = Vector2.new(0.5, 0)
+	UI.gridContainer.BackgroundTransparency = 1
+	UI.gridContainer.ZIndex = 10
+	UI.gridContainer.Parent = UI.rigContainer
+
+	Data.gridSlots = {}
+
+	for row = 1, Config.GRID_ROWS do
+		Data.gridSlots[row] = {}
+		for col = 1, Config.GRID_COLS do
+			local slot = Instance.new("Frame")
+			slot.Name = "Slot_" .. row .. "_" .. col
+			slot.Size = UDim2.new(0, Config.CELL_SIZE, 0, Config.CELL_SIZE)
+			slot.Position = UDim2.new(0, (col - 1) * (Config.CELL_SIZE + Config.CELL_PADDING), 0, (row - 1) * (Config.CELL_SIZE + Config.CELL_PADDING))
+			slot.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+			slot.BackgroundTransparency = 1
+			slot.BorderSizePixel = 0
+			slot.ZIndex = 10
+			slot.Parent = UI.gridContainer
+
+			local slotStroke = Instance.new("UIStroke")
+			slotStroke.Name = "SlotStroke"
+			slotStroke.Color = Color3.fromRGB(60, 60, 80)
+			slotStroke.Thickness = 1
+			slotStroke.Parent = slot
+
+			Data.gridSlots[row][col] = slot
+		end
+	end
+	
+	return UI.rigContainer, UI.gridContainer
 end
 
-function UIManager.hideItemInfoModal()
-    -- Lines 492-496 logic
+function UIManager.createItemFrame(itemConfig, width, height, row, col, Config, parentContainer)
+	local itemFrame = Instance.new("Frame")
+	itemFrame.Name = itemConfig.id
+	itemFrame.Size = UDim2.new(0, width * Config.CELL_SIZE + (width - 1) * Config.CELL_PADDING, 0, height * Config.CELL_SIZE + (height - 1) * Config.CELL_PADDING)
+	itemFrame.Position = UDim2.new(0, (col - 1) * (Config.CELL_SIZE + Config.CELL_PADDING), 0, (row - 1) * (Config.CELL_SIZE + Config.CELL_PADDING))
+	
+	local frameColor = ItemConfig.GetRarityFrameColor(itemConfig.rarity or "Common")
+	local frameTransparency = ItemConfig.GetRarityFrameTransparency()
+	itemFrame.BackgroundColor3 = frameColor
+	itemFrame.BackgroundTransparency = frameTransparency
+	itemFrame.BorderSizePixel = 0
+	itemFrame.ZIndex = 15
+	itemFrame.Parent = parentContainer or UIManager.UI.gridContainer
+	
+	local strokeColor = ItemConfig.GetRarityColor(itemConfig.rarity or "Common")
+	
+	local darkerColor = Color3.fromRGB(
+		math.floor(frameColor.R * 255 * 0.6),
+		math.floor(frameColor.G * 255 * 0.6),
+		math.floor(frameColor.B * 255 * 0.6)
+	)
+	local gradient = Instance.new("UIGradient")
+	gradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, frameColor),
+		ColorSequenceKeypoint.new(1, darkerColor),
+	})
+	gradient.Rotation = 45
+	gradient.Parent = itemFrame
+	
+	local stroke = Instance.new("UIStroke")
+	stroke.Name = "ItemStroke"
+	stroke.Color = strokeColor
+	stroke.Thickness = 1
+	stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	stroke.Parent = itemFrame
+	
+	if itemConfig.icon and itemConfig.icon ~= "" and itemConfig.icon ~= "rbxassetid://0" then
+		local iconImage = Instance.new("ImageLabel")
+		iconImage.Name = "Icon"
+		iconImage.Size = UDim2.new(1, 0, 1, 0)
+		iconImage.Position = UDim2.new(0, 0, 0, 0)
+		iconImage.BackgroundTransparency = 1
+		iconImage.Image = itemConfig.icon
+		iconImage.ScaleType = Enum.ScaleType.Fit
+		iconImage.ZIndex = 16
+		iconImage.Parent = itemFrame
+	else
+		local icon = Instance.new("Frame")
+		icon.Name = "Icon"
+		icon.Size = UDim2.new(0.6, 0, 0.6, 0)
+		icon.Position = UDim2.new(0.2, 0, 0.2, 0)
+		icon.BackgroundColor3 = itemConfig.color or Color3.fromRGB(200, 200, 200)
+		icon.BackgroundTransparency = 0.3
+		icon.BorderSizePixel = 0
+		icon.ZIndex = 16
+		icon.Parent = itemFrame
+	end
+	
+	return itemFrame
 end
 
-function UIManager.updateActionBar(itemData)
-    -- Lines 498-520 logic
-    -- Update action bar with selected item
+function UIManager.clearHighlights(State)
+	if State.highlightOverlay and State.highlightOverlay.Parent then
+		State.highlightOverlay:Destroy()
+		State.highlightOverlay = nil
+	end
 end
 
--- ============================================================================
--- SECTION 3: CONTENT CONTAINERS (~200 lines)
--- ============================================================================
-function UIManager.createContentScroll(parent)
-    -- Lines 530-560 logic
-    -- Scrolling frame with layout
-    -- Returns: contentScroll
+function UIManager.highlightSlots(startRow, startCol, width, height, isValid, Config, State)
+	UIManager.clearHighlights(State)
+	
+	if startRow < 1 or startCol < 1 or startRow > Config.GRID_ROWS or startCol > Config.GRID_COLS then
+		return
+	end
+	
+	local color = isValid and Color3.fromRGB(100, 255, 100) or Color3.fromRGB(255, 100, 100)
+	
+	State.highlightOverlay = Instance.new("Frame")
+	State.highlightOverlay.Name = "HighlightOverlay"
+	State.highlightOverlay.Size = UDim2.new(0, width * Config.CELL_SIZE + (width - 1) * Config.CELL_PADDING, 0, height * Config.CELL_SIZE + (height - 1) * Config.CELL_PADDING)
+	State.highlightOverlay.Position = UDim2.new(0, (startCol - 1) * (Config.CELL_SIZE + Config.CELL_PADDING), 0, (startRow - 1) * (Config.CELL_SIZE + Config.CELL_PADDING))
+	State.highlightOverlay.BackgroundColor3 = color
+	State.highlightOverlay.BackgroundTransparency = 0.7
+	State.highlightOverlay.BorderSizePixel = 0
+	State.highlightOverlay.ZIndex = 14
+	State.highlightOverlay.Parent = UIManager.UI.gridContainer
+	
+	local overlayStroke = Instance.new("UIStroke")
+	overlayStroke.Color = color
+	overlayStroke.Thickness = 3
+	overlayStroke.Parent = State.highlightOverlay
 end
 
-function UIManager.createRigContainer(parent, stateAndDataManager)
-    -- Lines 562-625 logic
-    -- CRITICAL: Grid slot creation with exact positioning
-    -- Populate Data.gridSlots table
-    -- Returns: rigContainer, gridContainer
+function UIManager.highlightOriginalSlot(row, col, width, height, Config, State)
+	if State.originalSlotOverlay and State.originalSlotOverlay.Parent then
+		State.originalSlotOverlay:Destroy()
+	end
+	
+	State.originalSlotOverlay = Instance.new("Frame")
+	State.originalSlotOverlay.Name = "OriginalSlotOverlay"
+	State.originalSlotOverlay.Size = UDim2.new(0, width * Config.CELL_SIZE + (width - 1) * Config.CELL_PADDING, 0, height * Config.CELL_SIZE + (height - 1) * Config.CELL_PADDING)
+	State.originalSlotOverlay.Position = UDim2.new(0, (col - 1) * (Config.CELL_SIZE + Config.CELL_PADDING), 0, (row - 1) * (Config.CELL_SIZE + Config.CELL_PADDING))
+	State.originalSlotOverlay.BackgroundColor3 = Color3.fromRGB(255, 220, 100)
+	State.originalSlotOverlay.BackgroundTransparency = 0.8
+	State.originalSlotOverlay.BorderSizePixel = 0
+	State.originalSlotOverlay.ZIndex = 12
+	State.originalSlotOverlay.Parent = UIManager.UI.gridContainer
+	
+	local overlayStroke = Instance.new("UIStroke")
+	overlayStroke.Color = Color3.fromRGB(255, 220, 100)
+	overlayStroke.Thickness = 2
+	overlayStroke.Transparency = 0.3
+	overlayStroke.Parent = State.originalSlotOverlay
 end
 
-function UIManager.createBackpackContainer(parent)
-    -- Lines 627-670 logic
-    -- Returns: backpackContainer
+function UIManager.resetOriginalSlotHighlight(State)
+	if State.originalSlotOverlay and State.originalSlotOverlay.Parent then
+		State.originalSlotOverlay:Destroy()
+		State.originalSlotOverlay = nil
+	end
 end
 
-function UIManager.createLootInfoContainer(parent)
-    -- Lines 672-695 logic
-    -- Returns: lootInfoContainer, equipmentValueLabel, weightLabel
+function UIManager.clearChestHighlights(State)
+	if State.chestHighlightOverlay and State.chestHighlightOverlay.Parent then
+		State.chestHighlightOverlay:Destroy()
+		State.chestHighlightOverlay = nil
+	end
 end
 
--- ============================================================================
--- SECTION 4: ARMOR SYSTEM UI (~150 lines)
--- ============================================================================
-function UIManager.createArmorContainer(parent, stateAndDataManager, remoteEvents, canFitItemAnywhereFunc)
-    -- Lines 710-850 logic
-    -- CRITICAL: Armor slot click handlers
-    -- Equipment/unequipment logic
-    -- Space checking before unequip
-    -- Populate Data.armorSlots table
-    -- Returns: armorContainer
+function UIManager.highlightChestSlots(startRow, startCol, width, height, isValid, Config, State)
+	UIManager.clearChestHighlights(State)
+	
+	local chestConf = State.currentChestConfig or { gridRows = 6, gridCols = 6 }
+	if startRow < 1 or startCol < 1 or startRow > chestConf.gridRows or startCol > chestConf.gridCols then
+		return
+	end
+	
+	local color = isValid and Color3.fromRGB(100, 255, 100) or Color3.fromRGB(255, 100, 100)
+	local cellSize = Config.CHEST.CELL_SIZE
+	local cellPadding = Config.CHEST.CELL_PADDING
+	
+	State.chestHighlightOverlay = Instance.new("Frame")
+	State.chestHighlightOverlay.Name = "ChestHighlightOverlay"
+	State.chestHighlightOverlay.Size = UDim2.new(0, width * cellSize + (width - 1) * cellPadding, 0, height * cellSize + (height - 1) * cellPadding)
+	State.chestHighlightOverlay.Position = UDim2.new(0, (startCol - 1) * (cellSize + cellPadding), 0, (startRow - 1) * (cellSize + cellPadding))
+	State.chestHighlightOverlay.BackgroundColor3 = color
+	State.chestHighlightOverlay.BackgroundTransparency = 0.7
+	State.chestHighlightOverlay.BorderSizePixel = 0
+	State.chestHighlightOverlay.ZIndex = 14
+	State.chestHighlightOverlay.Parent = UIManager.UI.gridContainerChest
+	
+	local overlayStroke = Instance.new("UIStroke")
+	overlayStroke.Color = color
+	overlayStroke.Thickness = 3
+	overlayStroke.Parent = State.chestHighlightOverlay
 end
 
--- ============================================================================
--- SECTION 5: CHEST & PLAYER CONTAINERS (~120 lines)
--- ============================================================================
-function UIManager.createPlayerAndChestContainers(parent)
-    -- Lines 865-980 logic
-    -- PlayerContainer with viewport
-    -- ChestContainer with dynamic grid
-    -- Opening overlay with progress bar
-    -- Returns: PlayerContainer, ChestContainer, chestNameLabel, gridContainerChest, etc
+function UIManager.highlightChestOriginalSlot(row, col, width, height, Config, State)
+	if State.chestOriginalSlotOverlay and State.chestOriginalSlotOverlay.Parent then
+		State.chestOriginalSlotOverlay:Destroy()
+	end
+	
+	local cellSize = Config.CHEST.CELL_SIZE
+	local cellPadding = Config.CHEST.CELL_PADDING
+	
+	State.chestOriginalSlotOverlay = Instance.new("Frame")
+	State.chestOriginalSlotOverlay.Name = "ChestOriginalSlotOverlay"
+	State.chestOriginalSlotOverlay.Size = UDim2.new(0, width * cellSize + (width - 1) * cellPadding, 0, height * cellSize + (height - 1) * cellPadding)
+	State.chestOriginalSlotOverlay.Position = UDim2.new(0, (col - 1) * (cellSize + cellPadding), 0, (row - 1) * (cellSize + cellPadding))
+	State.chestOriginalSlotOverlay.BackgroundColor3 = Color3.fromRGB(255, 220, 100)
+	State.chestOriginalSlotOverlay.BackgroundTransparency = 0.8
+	State.chestOriginalSlotOverlay.BorderSizePixel = 0
+	State.chestOriginalSlotOverlay.ZIndex = 12
+	State.chestOriginalSlotOverlay.Parent = UIManager.UI.gridContainerChest
+	
+	local overlayStroke = Instance.new("UIStroke")
+	overlayStroke.Color = Color3.fromRGB(255, 220, 100)
+	overlayStroke.Thickness = 2
+	overlayStroke.Transparency = 0.3
+	overlayStroke.Parent = State.chestOriginalSlotOverlay
 end
 
-function UIManager.recreateChestGrid(stateAndDataManager, setupChestSlotInputFunc)
-    -- Lines 982-1080 logic
-    -- CRITICAL: Dynamic grid recreation based on chest config
-    -- Only recreate if size changed
-    -- Setup input handlers for each slot
+function UIManager.resetChestOriginalSlotHighlight(State)
+	if State.chestOriginalSlotOverlay and State.chestOriginalSlotOverlay.Parent then
+		State.chestOriginalSlotOverlay:Destroy()
+		State.chestOriginalSlotOverlay = nil
+	end
 end
 
--- ============================================================================
--- SECTION 6: CHARACTER VIEWPORT (~150 lines)
--- ============================================================================
-function UIManager.createCharacterViewport(parent, stateAndDataManager)
-    -- Lines 1095-1180 logic
-    -- CRITICAL: Rotation input handlers
-    -- InputBegan/Changed/Ended chain
-    -- Touch ID tracking
-    -- Returns: viewportFrame, worldModel, viewportCamera
+function UIManager.clearStorageHighlights(State)
+	if State.storageHighlightOverlay and State.storageHighlightOverlay.Parent then
+		State.storageHighlightOverlay:Destroy()
+		State.storageHighlightOverlay = nil
+	end
 end
 
-function UIManager.updateCharacterViewport(player, stateAndDataManager)
-    -- Lines 1182-1235 logic
-    -- Clone character for static display
-    -- Clean up scripts/humanoid
-    -- Load idle animation ONLY
-    -- Position camera
+function UIManager.highlightStorageSlots(startRow, startCol, width, height, isValid, Config, State)
+	UIManager.clearStorageHighlights(State)
+	
+	if startRow < 1 or startCol < 1 or startRow > Config.STORAGE.GRID_ROWS or startCol > Config.STORAGE.GRID_COLS then
+		return
+	end
+	
+	local color = isValid and Color3.fromRGB(100, 255, 100) or Color3.fromRGB(255, 100, 100)
+	
+	State.storageHighlightOverlay = Instance.new("Frame")
+	State.storageHighlightOverlay.Name = "StorageHighlightOverlay"
+	State.storageHighlightOverlay.Size = UDim2.new(0, width * Config.STORAGE.CELL_SIZE + (width - 1) * Config.STORAGE.CELL_PADDING, 0, height * Config.STORAGE.CELL_SIZE + (height - 1) * Config.STORAGE.CELL_PADDING)
+	State.storageHighlightOverlay.Position = UDim2.new(0, (startCol - 1) * (Config.STORAGE.CELL_SIZE + Config.STORAGE.CELL_PADDING), 0, (startRow - 1) * (Config.STORAGE.CELL_SIZE + Config.STORAGE.CELL_PADDING))
+	State.storageHighlightOverlay.BackgroundColor3 = color
+	State.storageHighlightOverlay.BackgroundTransparency = 0.7
+	State.storageHighlightOverlay.BorderSizePixel = 0
+	State.storageHighlightOverlay.ZIndex = 14
+	State.storageHighlightOverlay.Parent = UIManager.UI.storageGridFrame
+	
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = color
+	stroke.Thickness = 3
+	stroke.Parent = State.storageHighlightOverlay
 end
 
--- ============================================================================
--- SECTION 7: STATUS & HEALTH (~100 lines)
--- ============================================================================
-function UIManager.createStatusContainer(parent)
-    -- Lines 1240-1310 logic
-    -- Health bar with divider
-    -- Returns: statusContainer, healthBarFill, healthLabel
+function UIManager.highlightStorageOriginalSlot(row, col, width, height, Config, State)
+	if State.storageOriginalSlotOverlay and State.storageOriginalSlotOverlay.Parent then
+		State.storageOriginalSlotOverlay:Destroy()
+	end
+	
+	State.storageOriginalSlotOverlay = Instance.new("Frame")
+	State.storageOriginalSlotOverlay.Name = "StorageOriginalSlotOverlay"
+	State.storageOriginalSlotOverlay.Size = UDim2.new(0, width * Config.STORAGE.CELL_SIZE + (width - 1) * Config.STORAGE.CELL_PADDING, 0, height * Config.STORAGE.CELL_SIZE + (height - 1) * Config.STORAGE.CELL_PADDING)
+	State.storageOriginalSlotOverlay.Position = UDim2.new(0, (col - 1) * (Config.STORAGE.CELL_SIZE + Config.STORAGE.CELL_PADDING), 0, (row - 1) * (Config.STORAGE.CELL_SIZE + Config.STORAGE.CELL_PADDING))
+	State.storageOriginalSlotOverlay.BackgroundColor3 = Color3.fromRGB(255, 220, 100)
+	State.storageOriginalSlotOverlay.BackgroundTransparency = 0.8
+	State.storageOriginalSlotOverlay.BorderSizePixel = 0
+	State.storageOriginalSlotOverlay.ZIndex = 12
+	State.storageOriginalSlotOverlay.Parent = UIManager.UI.storageGridFrame
+	
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = Color3.fromRGB(255, 220, 100)
+	stroke.Thickness = 2
+	stroke.Transparency = 0.3
+	stroke.Parent = State.storageOriginalSlotOverlay
 end
 
-function UIManager.updateHealthBar(player)
-    -- Lines 1312-1330 logic
-    -- Update bar size and color based on health
+function UIManager.resetStorageOriginalSlotHighlight(State)
+	if State.storageOriginalSlotOverlay and State.storageOriginalSlotOverlay.Parent then
+		State.storageOriginalSlotOverlay:Destroy()
+		State.storageOriginalSlotOverlay = nil
+	end
 end
 
-function UIManager.connectHealthBar(player, stateAndDataManager)
-    -- Lines 1332-1340 logic
-    -- Connect to humanoid health changes
+function UIManager.updateActionBar(itemData, State)
+	local UI = UIManager.UI
+	State.actionBarSelectedItem = itemData
+	if itemData then
+		UI.actionBar.Visible = true
+		UI.actionNameLabel.Text = itemData.config.name
+		UI.actionItemIcon.Image = itemData.config.icon or ""
+		
+		local rarity = itemData.config.rarity or "Common"
+		UI.actionItemIcon.BackgroundColor3 = ItemConfig.GetRarityFrameColor(rarity)
+		UI.actionIconStroke.Color = ItemConfig.GetRarityColor(rarity)
+	else
+		UI.actionBar.Visible = false
+		UI.actionNameLabel.Text = ""
+		UI.actionItemIcon.Image = ""
+		
+		UI.actionItemIcon.BackgroundColor3 = ItemConfig.GetRarityFrameColor("Common")
+		UI.actionIconStroke.Color = ItemConfig.GetRarityColor("Common")
+	end
 end
 
--- ============================================================================
--- SECTION 8: ITEM VISUALS (~100 lines)
--- ============================================================================
-function UIManager.createItemFrame(itemConfig, width, height, row, col, stateAndDataManager)
-    -- Lines ~1350-1450 logic
-    -- CRITICAL: Rarity color system
-    -- Frame background from GetRarityFrameColor()
-    -- Stroke from GetRarityColor()
-    -- Gradient calculation
-    -- Icon setup (ImageLabel or fallback Frame)
-    -- Returns: itemFrame
-end
-
--- ============================================================================
--- SECTION 9: HIGHLIGHT SYSTEM - INVENTORY (~110 lines)
--- ============================================================================
-function UIManager.clearHighlights(stateAndDataManager)
-    -- Lines ~1470-1480 logic
-end
-
-function UIManager.highlightSlots(startRow, startCol, width, height, isValid, stateAndDataManager)
-    -- Lines ~1482-1520 logic
-    -- CRITICAL: Green (valid) vs Red (invalid)
-    -- Position calculation with CELL_SIZE + CELL_PADDING
-    -- ZIndex = 14 (above slots, below items)
-end
-
-function UIManager.highlightOriginalSlot(row, col, width, height, stateAndDataManager)
-    -- Lines ~1522-1560 logic
-    -- Yellow overlay for original position
-    -- ZIndex = 12
-end
-
-function UIManager.resetOriginalSlotHighlight(stateAndDataManager)
-    -- Lines ~1562-1580 logic
-end
-
--- ============================================================================
--- SECTION 10: HIGHLIGHT SYSTEM - CHEST (~110 lines)
--- ============================================================================
-function UIManager.clearChestHighlights(stateAndDataManager)
-    -- Lines ~1590-1600 logic
-end
-
-function UIManager.highlightChestSlots(startRow, startCol, width, height, isValid, stateAndDataManager)
-    -- Lines ~1602-1640 logic
-    -- Use CHEST.CELL_SIZE and CHEST.CELL_PADDING
-    -- Parent to gridContainerChest
-end
-
-function UIManager.highlightChestOriginalSlot(row, col, width, height, stateAndDataManager)
-    -- Lines ~1642-1680 logic
-end
-
-function UIManager.resetChestOriginalSlotHighlight(stateAndDataManager)
-    -- Lines ~1682-1700 logic
-end
-
--- ============================================================================
--- SECTION 11: HIGHLIGHT SYSTEM - STORAGE (~110 lines)
--- ============================================================================
-function UIManager.clearStorageHighlights(stateAndDataManager)
-    -- Lines ~1710-1720 logic
-end
-
-function UIManager.highlightStorageSlots(startRow, startCol, width, height, isValid, stateAndDataManager)
-    -- Lines ~1722-1760 logic
-    -- Use STORAGE.CELL_SIZE and STORAGE.CELL_PADDING
-end
-
-function UIManager.highlightStorageOriginalSlot(row, col, width, height, stateAndDataManager)
-    -- Lines ~1762-1800 logic
-end
-
-function UIManager.resetStorageOriginalSlotHighlight(stateAndDataManager)
-    -- Lines ~1802-1820 logic
-end
-
--- ============================================================================
--- SECTION 12: ITEM INFO POPUP (~130 lines)
--- ============================================================================
-function UIManager.closeItemInfoPopup(stateAndDataManager)
-    -- Lines ~1830-1840 logic
-end
-
-function UIManager.showItemInfoPopup(itemData, stateAndDataManager)
-    -- Lines ~1842-1940 logic
-    -- CRITICAL: Position calculation relative to mainPanel
-    -- Avoid ClipsDescendants by parenting to mainPanel
-    -- Rarity color system for icon frame
-    -- Icon, name, weight, description layout
-end
-
--- ============================================================================
--- INITIALIZATION
--- ============================================================================
-function UIManager.initialize(player, stateAndDataManager, remoteEvents)
-    -- Call all create*() functions in correct order
-    -- Wire up all UI references to UIManager.UI table
-    -- Connect button click handlers
-    -- Setup input handlers
-    -- Return UIManager
+function UIManager.setupButtonHoverEffects()
+	local UI = UIManager.UI
+	
+	UI.infoButton.MouseEnter:Connect(function()
+		TweenService:Create(UI.infoStroke, TweenInfo.new(0.15), {Color = Color3.fromRGB(150, 200, 255)}):Play()
+	end)
+	UI.infoButton.MouseLeave:Connect(function()
+		TweenService:Create(UI.infoStroke, TweenInfo.new(0.15), {Color = Color3.new(1, 1, 1)}):Play()
+	end)
+	UI.dropButton.MouseEnter:Connect(function()
+		TweenService:Create(UI.dropStroke, TweenInfo.new(0.15), {Color = Color3.fromRGB(255, 150, 150)}):Play()
+	end)
+	UI.dropButton.MouseLeave:Connect(function()
+		TweenService:Create(UI.dropStroke, TweenInfo.new(0.15), {Color = Color3.new(1, 1, 1)}):Play()
+	end)
 end
 
 return UIManager
-⚠️⚠️⚠️ VALIDATION CHECKLIST ⚠️⚠️⚠️
-UI VISUAL TESTS:
-✅ All UI elements appear in correct positions
-✅ ZIndex layering correct (no elements behind when should be front)
-✅ Colors match original exactly
-✅ Gradients render correctly
-✅ Rarity colors display properly (Common=gray, Rare=blue, Epic=purple, Legendary=gold)
-INTERACTION TESTS:
-✅ Inventory button toggles panel
-✅ Close button works
-✅ Action bar shows/hides correctly
-✅ Info modal opens with correct data
-✅ Viewport character rotates with mouse/touch
-✅ Health bar updates correctly
-HIGHLIGHT TESTS:
-✅ Green highlight for valid placement
-✅ Red highlight for invalid placement
-✅ Yellow highlight for original position
-✅ Highlights clear properly
-✅ Chest/storage highlights work independently
-RESPONSIVE TESTS:
-✅ UIScale updates on viewport size change
-✅ Touch blocker prevents camera movement on mobile
-✅ Scrolling works in content scroll
-GRID SLOT TESTS:
-✅ All grid slots created in correct positions
-✅ Data.gridSlots populated correctly
-✅ Chest grid recreates with different sizes
-✅ Storage grid renders properly
-ARMOR SYSTEM TESTS:
-✅ Armor slots clickable
-✅ Equipment visual feedback works
-✅ Unequip checks inventory space
-✅ Stroke color changes on equip (green)
-CHARACTER VIEWPORT TESTS:
-✅ Character clones correctly
-✅ Idle animation plays
-✅ Rotation smooth with input
-✅ Camera positioned correctly
-MODAL TESTS:
-✅ Item info modal shows correct data
-✅ Modal close button works
-✅ Modal positioned correctly (not clipped)
-INTEGRATION NOTES:
-Replace in original script:
-All UI. references → UIManager.UI.
-All create*() calls → UIManager.create*()
-All highlight functions → UIManager.highlight*()
-Pass stateAndDataManager to all functions that need State/Data/Config
-Example usage:
-local UIManager = require(script.UIManager)
-local StateAndDataManager = require(script.StateAndDataManager)
-
--- Initialize UI
-UIManager.initialize(player, StateAndDataManager, remoteEvents)
-
--- Access UI elements
-UIManager.UI.mainPanel.Visible = true
-
--- Highlight slots
-UIManager.highlightSlots(1, 1, 2, 2, true, StateAndDataManager)
-
--- Create item frame
-local itemFrame = UIManager.createItemFrame(itemConfig, 2, 2, 1, 1, StateAndDataManager)
-ROLLBACK PLAN:
-If UI breaks:
-Check ZIndex values first (most common issue)
-Verify Color3 values match exactly
-Check parent hierarchy
-Test each section independently
-Use original create*() functions as reference
-DO NOT PROCEED TO PROMPT 3 UNTIL:
-✅ ALL UI elements visible and positioned correctly
-✅ ALL interactions work (buttons, rotation, highlights)
-✅ Rarity colors display properly
-✅ No visual glitches
-✅ Health bar updates
-✅ Viewport character displays and rotates
