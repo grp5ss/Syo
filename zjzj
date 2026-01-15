@@ -1,684 +1,1702 @@
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local TweenService = game:GetService("TweenService")
-local UserInputService = game:GetService("UserInputService")
-local Lighting = game:GetService("Lighting")
+ðŸ”¨ STREAMLINED REFACTORING PLAN - GridInventory.lua
+ðŸ“‹ Executive Summary
+Current State: 4259-line monolithic LocalScript with partial modularization (StateAndDataManager, UIManager)
 
-local ItemConfig = require(ReplicatedStorage:WaitForChild("ItemConfig"))
+Goal: Refactor into 4-5 comprehensive modules (500-1000+ lines each) without breaking functionality
 
-local UIManager = {}
-UIManager.UI = {}
+ðŸ“ Proposed Lean Module Structure
 
-function UIManager.createBaseUI(playerGui, Services)
-	local UI = UIManager.UI
-	
-	UI.screenGui = Instance.new("ScreenGui")
-	UI.screenGui.Name = "GridInventoryUI"
-	UI.screenGui.ResetOnSpawn = false
-	UI.screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-	UI.screenGui.IgnoreGuiInset = true
-	UI.screenGui.DisplayOrder = 100
-	UI.screenGui.Parent = playerGui
+StarterPlayerScripts/
+â”œâ”€â”€ InventoryLoot.lua (Main orchestrator - 600-800 lines)
+â”‚
+â”œâ”€â”€ Modules/
+â”‚   â”œâ”€â”€ StateAndDataManager.lua (Existing - ENHANCE to 800-1000 lines)
+â”‚   â”œâ”€â”€ UIManager.lua (Existing - ENHANCE to 900-1200 lines)
+â”‚   â”œâ”€â”€ InputAndDragManager.lua (NEW - 800-1000 lines)
+â”‚   â””â”€â”€ GridAndPlacementManager.lua (NEW - 600-800 lines)
+Total: 5 files instead of 15+
 
-	UI.uiScale = Instance.new("UIScale")
-	UI.uiScale.Name = "ResponsiveScale"
-	UI.uiScale.Scale = 1
-	UI.uiScale.Parent = UI.screenGui
+ðŸŽ¯ Module 1: StateAndDataManager.lua (ENHANCED)
+Current Size: ~400 lines â†’ Target: 800-1000 lines
+Add to Existing Module:
 
-	local function updateScale()
-		local camera = workspace.CurrentCamera
-		if not camera then return end
-		local viewport = camera.ViewportSize
-		local minDimension = math.min(viewport.X, viewport.Y)
-		local scale = math.clamp(minDimension / 700, 0.7, 1.3)
-		UI.uiScale.Scale = scale
-	end
+-- ============================================================================
+-- CURRENT FUNCTIONS (Keep)
+-- ============================================================================
+-- Grid data management (inventory/chest/storage)
+-- Item placement/removal logic
+-- Grid validation functions
 
-	workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(updateScale)
-	task.spawn(updateScale)
-	
-	UI.blurEffect = Lighting:FindFirstChild("Blur")
-	
-	return UI.screenGui, UI.uiScale
+-- ============================================================================
+-- NEW ADDITIONS
+-- ============================================================================
+
+-- ===== SECTION: NETWORK COMMUNICATION =====
+function StateAndDataManager.NetworkManager()
+    return {
+        -- Server communication wrappers
+        collectItem = function(itemName, position)
+            if Events.CollectItem then
+                Events.CollectItem:FireServer(itemName, position)
+            end
+        end,
+        
+        dropItem = function(itemId)
+            if Events.DropItem then
+                Events.DropItem:FireServer(itemId)
+            end
+        end,
+        
+        updateItemPosition = function(itemId, row, col, rotated)
+            local updateEvent = ReplicatedStorage:FindFirstChild("Remotes")
+                and ReplicatedStorage.Remotes:FindFirstChild("UpdateItemPosition")
+            if updateEvent then
+                updateEvent:FireServer(itemId, row, col, rotated)
+            end
+        end,
+        
+        depositToChest = function(itemId, chestModel, row, col, width, height)
+            if Events.DepositItemToChest and chestModel then
+                Events.DepositItemToChest:FireServer(itemId, chestModel, row, col, width, height)
+            end
+        end,
+        
+        openChest = function(chestModel)
+            if Events.OpenChest then
+                Events.OpenChest:FireServer(chestModel)
+            end
+        end,
+        
+        equipArmor = function(action, itemIdOrSlot, slotType, instanceId)
+            if Events.ArmorEquip then
+                Events.ArmorEquip:FireServer(action, itemIdOrSlot, slotType, instanceId)
+            end
+        end,
+        
+        moveToStorage = function(itemId, row, col)
+            if Events.MoveToStorage then
+                Events.MoveToStorage:FireServer(itemId, row, col)
+            end
+        end,
+        
+        moveToInventory = function(itemId, row, col, rotated)
+            if Events.MoveToInventory then
+                Events.MoveToInventory:FireServer(itemId, row, col, rotated)
+            end
+        end,
+        
+        -- Event listeners setup
+        setupListeners = function(callbacks)
+            if Events.SyncInventory then
+                Events.SyncInventory.OnClientEvent:Connect(callbacks.onInventorySync)
+            end
+            if Events.SyncChestLoot then
+                Events.SyncChestLoot.OnClientEvent:Connect(callbacks.onChestSync)
+            end
+            if Events.SyncStorage then
+                Events.SyncStorage.OnClientEvent:Connect(callbacks.onStorageSync)
+            end
+            if Events.ArmorSync then
+                Events.ArmorSync.OnClientEvent:Connect(callbacks.onArmorSync)
+            end
+            if Events.InventoryFull then
+                Events.InventoryFull.OnClientEvent:Connect(callbacks.onInventoryFull)
+            end
+        end,
+    }
 end
 
-function UIManager.createInventoryButton(Config)
-	local UI = UIManager.UI
-	
-	UI.invButton = Instance.new("TextButton")
-	UI.invButton.Name = "InventoryButton"
-	UI.invButton.Size = Config.UI.invBtnSize
-	UI.invButton.Position = Config.UI.invBtnPos
-	UI.invButton.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-	UI.invButton.BorderSizePixel = 0
-	UI.invButton.Text = ""
-	UI.invButton.Parent = UI.screenGui
-
-	local invCorner = Instance.new("UICorner")
-	invCorner.CornerRadius = UDim.new(0, 10)
-	invCorner.Parent = UI.invButton
-
-	local invStroke = Instance.new("UIStroke")
-	invStroke.Color = Color3.fromRGB(139, 92, 246)
-	invStroke.Thickness = 2
-	invStroke.Parent = UI.invButton
-
-	local invEmoji = Instance.new("TextLabel")
-	invEmoji.Size = UDim2.new(1, 0, 0, 40)
-	invEmoji.Position = UDim2.new(0, 0, 0, 2)
-	invEmoji.BackgroundTransparency = 1
-	invEmoji.Text = "ðŸ“¦"
-	invEmoji.TextSize = Config.UI.invEmojiSize
-	invEmoji.Font = Enum.Font.GothamBold
-	invEmoji.Parent = UI.invButton
-
-	local invLabel = Instance.new("TextLabel")
-	invLabel.Size = UDim2.new(1, 0, 0, 20)
-	invLabel.Position = UDim2.new(0, 0, 0, 42)
-	invLabel.BackgroundTransparency = 1
-	invLabel.Text = "BAG"
-	invLabel.TextColor3 = Color3.new(1, 1, 1)
-	invLabel.TextSize = Config.UI.invLabelSize
-	invLabel.Font = Enum.Font.GothamBold
-	invLabel.Parent = UI.invButton
-
-	UI.touchBlocker = Instance.new("Frame")
-	UI.touchBlocker.Name = "TouchBlocker"
-	UI.touchBlocker.Size = UDim2.new(1, 0, 1, 0)
-	UI.touchBlocker.Position = UDim2.new(0, 0, 0, 0)
-	UI.touchBlocker.BackgroundColor3 = Color3.new(0, 0, 0)
-	UI.touchBlocker.BackgroundTransparency = 0.5
-	UI.touchBlocker.BorderSizePixel = 0
-	UI.touchBlocker.Visible = false
-	UI.touchBlocker.ZIndex = 9
-	UI.touchBlocker.Active = true
-	UI.touchBlocker.Parent = UI.screenGui
-	
-	return UI.invButton, UI.touchBlocker
+-- ===== SECTION: PROXIMITY DETECTION =====
+function StateAndDataManager.ProximityDetector()
+    return {
+        findNearbyItems = function(playerPos, maxDistance)
+            local nearbyItems = {}
+            local itemsFolder = workspace:FindFirstChild("Items")
+            local lootsFolder = workspace:FindFirstChild("Loots")
+            
+            local function scanFolder(folder)
+                if not folder then return end
+                for _, item in ipairs(folder:GetChildren()) do
+                    -- Skip chest models
+                    if item:IsA("Model") then
+                        local isChest = ChestConfig and ChestConfig.GetChest(item.Name) ~= nil
+                        if isChest then continue end
+                    end
+                    
+                    if not State.collectedItems[item] then
+                        local itemPos = self.getItemPosition(item)
+                        if itemPos then
+                            local distance = (playerPos - itemPos).Magnitude
+                            if distance <= maxDistance then
+                                table.insert(nearbyItems, item)
+                            end
+                        end
+                    end
+                end
+            end
+            
+            scanFolder(itemsFolder)
+            scanFolder(lootsFolder)
+            
+            -- Sort by distance
+            table.sort(nearbyItems, function(a, b)
+                local posA = self.getItemPosition(a)
+                local posB = self.getItemPosition(b)
+                if posA and posB then
+                    return (playerPos - posA).Magnitude < (playerPos - posB).Magnitude
+                end
+                return false
+            end)
+            
+            return nearbyItems
+        end,
+        
+        findNearbyChest = function(playerPos)
+            local lootsFolder = workspace:FindFirstChild("Loots")
+            if not lootsFolder then return nil end
+            
+            local closestChest = nil
+            local closestDistance = math.huge
+            
+            for _, chestModel in ipairs(lootsFolder:GetChildren()) do
+                if chestModel:IsA("Model") then
+                    local chestPrimaryPart = chestModel.PrimaryPart or chestModel:FindFirstChildWhichIsA("BasePart")
+                    if chestPrimaryPart then
+                        local chestConf = ChestConfig and ChestConfig.GetChest(chestModel.Name)
+                        local maxDistance = (chestConf and chestConf.activationDistance) or 8
+                        
+                        local distance = (playerPos - chestPrimaryPart.Position).Magnitude
+                        if distance < maxDistance and distance < closestDistance then
+                            closestDistance = distance
+                            closestChest = chestModel
+                        end
+                    end
+                end
+            end
+            
+            return closestChest
+        end,
+        
+        findNearbyStorage = function(playerPos)
+            local safeZone = workspace:FindFirstChild("SafeZone")
+            if not safeZone then return nil end
+            
+            local storage = safeZone:FindFirstChild("Storage")
+            if not storage then return nil end
+            
+            local trigger = storage:FindFirstChild("TriggerStorage")
+            if not trigger or not trigger:IsA("BasePart") then return nil end
+            
+            local distance = (playerPos - trigger.Position).Magnitude
+            if distance < 10 then
+                return trigger
+            end
+            
+            return nil
+        end,
+        
+        getItemPosition = function(item)
+            if item:IsA("Model") then
+                if item.PrimaryPart then
+                    return item.PrimaryPart.Position
+                end
+                local part = item:FindFirstChildWhichIsA("BasePart", true)
+                if part then
+                    return part.Position
+                end
+            elseif item:IsA("BasePart") then
+                return item.Position
+            end
+            return nil
+        end,
+    }
 end
 
-function UIManager.createMainPanel(Config)
-	local UI = UIManager.UI
-	
-	UI.mainPanel = Instance.new("Frame")
-	UI.mainPanel.Name = "MainPanel"
-	UI.mainPanel.Size = UDim2.new(1, 0, 1, 0)
-	UI.mainPanel.Position = UDim2.new(0, 0, 0, 0)
-	UI.mainPanel.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-	UI.mainPanel.BorderSizePixel = 0
-	UI.mainPanel.Visible = false
-	UI.mainPanel.ZIndex = 10
-	UI.mainPanel.ClipsDescendants = true
-	UI.mainPanel.Parent = UI.screenGui
-
-	UI.panelScale = Instance.new("UIScale")
-	UI.panelScale.Scale = 0.8
-	UI.panelScale.Parent = UI.mainPanel
-
-	local panelGradient = Instance.new("UIGradient")
-	panelGradient.Color = ColorSequence.new({
-		ColorSequenceKeypoint.new(0, Color3.new(1, 1, 1)),
-		ColorSequenceKeypoint.new(0.3, Color3.fromRGB(30, 30, 40)),
-		ColorSequenceKeypoint.new(1, Color3.new(0, 0, 0)),
-	})
-	panelGradient.Rotation = 90
-	panelGradient.Parent = UI.mainPanel
-
-	local panelBackgroundImage = Instance.new("ImageLabel")
-	panelBackgroundImage.Name = "BackgroundImage"
-	panelBackgroundImage.Size = UDim2.new(1, 0, 1, 0)
-	panelBackgroundImage.Position = UDim2.new(0, 0, 0, 0)
-	panelBackgroundImage.BackgroundTransparency = 1
-	panelBackgroundImage.Image = "rbxassetid://115143845524149"
-	panelBackgroundImage.ScaleType = Enum.ScaleType.Stretch
-	panelBackgroundImage.ZIndex = 1
-	panelBackgroundImage.Parent = UI.mainPanel
-
-	UI.closeButton = Instance.new("TextButton")
-	UI.closeButton.Name = "CloseButton"
-	UI.closeButton.Size = Config.UI.closeBtnSize
-	UI.closeButton.Position = UDim2.new(1, -42, 0, 8)
-	UI.closeButton.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
-	UI.closeButton.BackgroundTransparency = 1
-	UI.closeButton.BorderSizePixel = 0
-	UI.closeButton.Text = "X"
-	UI.closeButton.TextColor3 = Color3.new(1, 1, 1)
-	UI.closeButton.TextSize = 16
-	UI.closeButton.Font = Enum.Font.GothamBold
-	UI.closeButton.ZIndex = 11
-	UI.closeButton.Parent = UI.mainPanel
-
-	local closeCorner = Instance.new("UICorner")
-	closeCorner.CornerRadius = UDim.new(0, 8)
-	closeCorner.Parent = UI.closeButton
-	
-	return UI.mainPanel, UI.closeButton, UI.panelScale
+-- ===== SECTION: UTILITY FUNCTIONS =====
+function StateAndDataManager.Utils()
+    return {
+        canItemFitInInventory = function(itemInstance)
+            local itemName = itemInstance.Name
+            local itemIconConfig = ItemConfig[itemName] or ItemConfig.GetItem(itemName)
+            local itemWidth = (itemIconConfig and itemIconConfig.width) or itemInstance:GetAttribute("Width") or 1
+            local itemHeight = (itemIconConfig and itemIconConfig.height) or itemInstance:GetAttribute("Height") or 1
+            
+            -- Try normal orientation
+            for row = 1, Config.GRID_ROWS do
+                for col = 1, Config.GRID_COLS do
+                    if canPlaceItem(itemWidth, itemHeight, row, col, nil) then
+                        return true
+                    end
+                end
+            end
+            
+            -- Try rotated orientation
+            if itemWidth ~= itemHeight then
+                for row = 1, Config.GRID_ROWS do
+                    for col = 1, Config.GRID_COLS do
+                        if canPlaceItem(itemHeight, itemWidth, row, col, nil) then
+                            return true
+                        end
+                    end
+                end
+            end
+            
+            return false
+        end,
+        
+        playSound = function(soundName)
+            local soundService = game:GetService("SoundService")
+            local sound = soundService:FindFirstChild(soundName)
+            if sound and sound:IsA("Sound") then
+                sound:Play()
+            end
+        end,
+        
+        flashFrame = function(frame, color, duration)
+            local originalColor = frame.BackgroundColor3
+            frame.BackgroundColor3 = color
+            task.delay(duration or 0.3, function()
+                if frame and frame.Parent then
+                    frame.BackgroundColor3 = originalColor
+                end
+            end)
+        end,
+        
+        getGridPositionFromAbsolute = function(absX, absY, containerPos, scale, cellSize, cellPadding)
+            local scaledCellSize = (cellSize + cellPadding) * scale
+            local relX = absX - containerPos.X
+            local relY = absY - containerPos.Y
+            local col = math.floor((relX + scaledCellSize / 2) / scaledCellSize) + 1
+            local row = math.floor((relY + scaledCellSize / 2) / scaledCellSize) + 1
+            return row, col
+        end,
+    }
 end
 
-function UIManager.createActionBar()
-	local UI = UIManager.UI
-	
-	UI.actionBar = Instance.new("Frame")
-	UI.actionBar.Name = "ActionBar"
-	UI.actionBar.Size = UDim2.new(1, -20, 0, 50)
-	UI.actionBar.Position = UDim2.new(0, 10, 1, -60)
-	UI.actionBar.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-	UI.actionBar.BorderSizePixel = 0
-	UI.actionBar.ZIndex = 20
-	UI.actionBar.Visible = false
-	UI.actionBar.Parent = UI.mainPanel
+return StateAndDataManager
+Additions: +400-600 lines
+Total: ~800-1000 lines
 
-	local actionBarCorner = Instance.new("UICorner")
-	actionBarCorner.CornerRadius = UDim.new(0, 8)
-	actionBarCorner.Parent = UI.actionBar
+ðŸŽ¯ Module 2: UIManager.lua (ENHANCED)
+Current Size: ~600 lines â†’ Target: 900-1200 lines
+Add to Existing Module:
 
-	local actionBarStroke = Instance.new("UIStroke")
-	actionBarStroke.Color = Color3.fromRGB(80, 80, 120)
-	actionBarStroke.Thickness = 2
-	actionBarStroke.Parent = UI.actionBar
+-- ============================================================================
+-- CURRENT FUNCTIONS (Keep)
+-- ============================================================================
+-- Base UI creation
+-- Panel/container creation
+-- Button creation
+-- Grid slot creation
 
-	UI.actionItemIcon = Instance.new("ImageLabel")
-	UI.actionItemIcon.Name = "ItemIcon"
-	UI.actionItemIcon.Size = UDim2.new(0, 40, 0, 40)
-	UI.actionItemIcon.Position = UDim2.new(0, 8, 0.5, -20)
-	UI.actionItemIcon.BackgroundColor3 = ItemConfig.GetRarityFrameColor("Common")
-	UI.actionItemIcon.BackgroundTransparency = ItemConfig.GetRarityFrameTransparency()
-	UI.actionItemIcon.BorderSizePixel = 0
-	UI.actionItemIcon.Image = ""
-	UI.actionItemIcon.ScaleType = Enum.ScaleType.Fit
-	UI.actionItemIcon.ZIndex = 21
-	UI.actionItemIcon.Parent = UI.actionBar
-	
-	UI.actionIconStroke = Instance.new("UIStroke")
-	UI.actionIconStroke.Name = "IconStroke"
-	UI.actionIconStroke.Color = ItemConfig.GetRarityColor("Common")
-	UI.actionIconStroke.Thickness = 1
-	UI.actionIconStroke.Parent = UI.actionItemIcon
+-- ============================================================================
+-- NEW ADDITIONS
+-- ============================================================================
 
-	UI.actionNameLabel = Instance.new("TextLabel")
-	UI.actionNameLabel.Name = "NameLabel"
-	UI.actionNameLabel.Size = UDim2.new(0.4, -60, 0, 20)
-	UI.actionNameLabel.Position = UDim2.new(0, 55, 0.5, -10)
-	UI.actionNameLabel.BackgroundTransparency = 1
-	UI.actionNameLabel.Text = "Item Name"
-	UI.actionNameLabel.TextColor3 = Color3.new(1, 1, 1)
-	UI.actionNameLabel.TextXAlignment = Enum.TextXAlignment.Left
-	UI.actionNameLabel.TextSize = 13
-	UI.actionNameLabel.Font = Enum.Font.GothamBold
-	UI.actionNameLabel.ZIndex = 21
-	UI.actionNameLabel.Parent = UI.actionBar
-
-	UI.infoButton = Instance.new("TextButton")
-	UI.infoButton.Name = "InfoButton"
-	UI.infoButton.Size = UDim2.new(0, 80, 0, 32)
-	UI.infoButton.Position = UDim2.new(1, -185, 0.5, -16)
-	UI.infoButton.BackgroundColor3 = Color3.fromRGB(40, 40, 80)
-	UI.infoButton.BorderSizePixel = 0
-	UI.infoButton.Text = "INFO"
-	UI.infoButton.TextColor3 = Color3.new(1, 1, 1)
-	UI.infoButton.TextSize = 12
-	UI.infoButton.Font = Enum.Font.GothamBold
-	UI.infoButton.ZIndex = 21
-	UI.infoButton.Parent = UI.actionBar
-
-	UI.infoStroke = Instance.new("UIStroke")
-	UI.infoStroke.Color = Color3.new(1, 1, 1)
-	UI.infoStroke.Thickness = 1
-	UI.infoStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	UI.infoStroke.Parent = UI.infoButton
-
-	local infoCorner = Instance.new("UICorner")
-	infoCorner.CornerRadius = UDim.new(0, 6)
-	infoCorner.Parent = UI.infoButton
-	
-	UI.infoButton:SetAttribute("Button", true)
-
-	UI.dropButton = Instance.new("TextButton")
-	UI.dropButton.Name = "DropButton"
-	UI.dropButton.Size = UDim2.new(0, 70, 0, 34)
-	UI.dropButton.Position = UDim2.new(1, -82, 0.5, -17)
-	UI.dropButton.BackgroundTransparency = 1
-	UI.dropButton.BorderSizePixel = 0
-	UI.dropButton.Text = "ðŸ—‘ï¸ DROP"
-	UI.dropButton.TextColor3 = Color3.new(1, 1, 1)
-	UI.dropButton.TextSize = 12
-	UI.dropButton.Font = Enum.Font.GothamBold
-	UI.dropButton.ZIndex = 21
-	UI.dropButton.Parent = UI.actionBar
-
-	UI.dropStroke = Instance.new("UIStroke")
-	UI.dropStroke.Color = Color3.new(1, 1, 1)
-	UI.dropStroke.Thickness = 1
-	UI.dropStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	UI.dropStroke.Parent = UI.dropButton
-
-	local dropCorner = Instance.new("UICorner")
-	dropCorner.CornerRadius = UDim.new(0, 6)
-	dropCorner.Parent = UI.dropButton
-	
-	UI.dropButton:SetAttribute("Button", true)
-	
-	return UI.actionBar, UI.infoButton, UI.dropButton
+-- ===== SECTION: ITEM FRAME FACTORY =====
+function UIManager.ItemFrameFactory()
+    return {
+        -- Unified item frame creation
+        createItemFrame = function(itemData, containerType, config)
+            local cellConfig = config[containerType]
+            local cellSize = cellConfig.CELL_SIZE
+            local cellPadding = cellConfig.CELL_PADDING
+            
+            local itemFrame = Instance.new("Frame")
+            itemFrame.Name = itemData.id
+            itemFrame.Size = UDim2.new(
+                0, itemData.width * cellSize + (itemData.width - 1) * cellPadding,
+                0, itemData.height * cellSize + (itemData.height - 1) * cellPadding
+            )
+            itemFrame.Position = UDim2.new(
+                0, (itemData.col - 1) * (cellSize + cellPadding),
+                0, (itemData.row - 1) * (cellSize + cellPadding)
+            )
+            
+            -- Rarity-based styling
+            local frameColor = ItemConfig.GetRarityFrameColor(itemData.rarity or "Common")
+            itemFrame.BackgroundColor3 = frameColor
+            itemFrame.BackgroundTransparency = ItemConfig.GetRarityFrameTransparency()
+            itemFrame.BorderSizePixel = 0
+            itemFrame.ZIndex = 15
+            itemFrame.Active = true
+            
+            -- Stroke
+            local stroke = Instance.new("UIStroke")
+            stroke.Name = "ItemStroke"
+            stroke.Color = ItemConfig.GetRarityColor(itemData.rarity or "Common")
+            stroke.Thickness = 1
+            stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+            stroke.Parent = itemFrame
+            
+            -- Gradient
+            local darkerColor = Color3.fromRGB(
+                frameColor.R * 255 * 0.6,
+                frameColor.G * 255 * 0.6,
+                frameColor.B * 255 * 0.6
+            )
+            local gradient = Instance.new("UIGradient")
+            gradient.Color = ColorSequence.new({
+                ColorSequenceKeypoint.new(0, frameColor),
+                ColorSequenceKeypoint.new(1, darkerColor),
+            })
+            gradient.Rotation = 45
+            gradient.Parent = itemFrame
+            
+            -- Icon
+            if itemData.icon and itemData.icon ~= "" and itemData.icon ~= "rbxassetid://0" then
+                local iconImage = Instance.new("ImageLabel")
+                iconImage.Name = "Icon"
+                iconImage.Size = UDim2.new(1, 0, 1, 0)
+                iconImage.BackgroundTransparency = 1
+                iconImage.Image = itemData.icon
+                iconImage.ScaleType = Enum.ScaleType.Fit
+                iconImage.ZIndex = 16
+                iconImage.Parent = itemFrame
+            end
+            
+            return itemFrame
+        end,
+        
+        createChestItemWithReveal = function(itemData, config, isFirstSync)
+            local frame = self.createItemFrame(itemData, "chest", config)
+            
+            if isFirstSync then
+                local icon = frame:FindFirstChild("Icon")
+                if icon then icon.Visible = false end
+                
+                local stroke = frame:FindFirstChild("ItemStroke")
+                if stroke then stroke.Transparency = 1 end
+                
+                -- Mystery box
+                local mysteryBox = Instance.new("ImageLabel")
+                mysteryBox.Name = "MysteryBox"
+                mysteryBox.Size = UDim2.new(1, 0, 1, 0)
+                mysteryBox.BackgroundTransparency = 1
+                mysteryBox.Image = ItemConfig.GetMysteryBoxAsset(itemData.width or 1, itemData.height or 1)
+                mysteryBox.ScaleType = Enum.ScaleType.Fit
+                mysteryBox.ZIndex = 17
+                mysteryBox.Parent = frame
+                
+                frame:SetAttribute("IsRevealing", true)
+            end
+            
+            return frame
+        end,
+        
+        updateItemFramePosition = function(frame, row, col, width, height, cellSize, cellPadding)
+            frame.Size = UDim2.new(
+                0, width * cellSize + (width - 1) * cellPadding,
+                0, height * cellSize + (height - 1) * cellPadding
+            )
+            frame.Position = UDim2.new(
+                0, (col - 1) * (cellSize + cellPadding),
+                0, (row - 1) * (cellSize + cellPadding)
+            )
+        end,
+    }
 end
 
-function UIManager.createContentScroll()
-	local UI = UIManager.UI
-	
-	UI.contentScroll = Instance.new("ScrollingFrame")
-	UI.contentScroll.Name = "ContentScroll"
-	UI.contentScroll.Size = UDim2.new(0.47, 0, 1, -60)
-	UI.contentScroll.Position = UDim2.new(0, 0, 0, 50)
-	UI.contentScroll.BackgroundTransparency = 1
-	UI.contentScroll.BorderSizePixel = 0
-	UI.contentScroll.ScrollBarThickness = 8
-	UI.contentScroll.ScrollBarImageColor3 = Color3.fromRGB(100, 100, 130)
-	UI.contentScroll.ScrollBarImageTransparency = 1
-	UI.contentScroll.CanvasSize = UDim2.new(0, 0, 0, 1150)
-	UI.contentScroll.VerticalScrollBarPosition = Enum.VerticalScrollBarPosition.Left
-	UI.contentScroll.ZIndex = 10
-	UI.contentScroll.Parent = UI.mainPanel
-
-	local contentLayout = Instance.new("UIListLayout")
-	contentLayout.Name = "ContentLayout"
-	contentLayout.SortOrder = Enum.SortOrder.Name
-	contentLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-	contentLayout.VerticalAlignment = Enum.VerticalAlignment.Top
-	contentLayout.Padding = UDim.new(0, 20)
-	contentLayout.Parent = UI.contentScroll
-
-	local topDivider = Instance.new("Frame")
-	topDivider.Name = "00_TopDivider"
-	topDivider.Size = UDim2.new(1, -40, 0, 10)
-	topDivider.BackgroundTransparency = 1
-	topDivider.BorderSizePixel = 0
-	topDivider.ZIndex = 11
-	topDivider.Parent = UI.contentScroll
-	
-	return UI.contentScroll
+-- ===== SECTION: POPUP MANAGER =====
+function UIManager.PopupManager()
+    return {
+        createLootPopup = function(items, callbacks, config)
+            -- Close existing
+            if State.lootPopup then
+                State.lootPopup:Destroy()
+                State.lootPopup = nil
+            end
+            
+            if #items == 0 then return end
+            
+            local ITEM_ROW_HEIGHT = 50
+            local MIN_VISIBLE_ITEMS = 2
+            local itemCount = #items
+            local visibleItems = math.min(itemCount, MIN_VISIBLE_ITEMS)
+            local popupHeight = 30 + (visibleItems * ITEM_ROW_HEIGHT)
+            
+            -- Create popup frame
+            State.lootPopup = Instance.new("Frame")
+            State.lootPopup.Name = "LootPopup"
+            State.lootPopup.Size = UDim2.new(0, 220, 0, popupHeight)
+            State.lootPopup.Position = UDim2.new(0.5, 50, 0.5, 30)
+            State.lootPopup.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+            State.lootPopup.BorderSizePixel = 0
+            State.lootPopup.ZIndex = 5
+            State.lootPopup.Parent = UI.screenGui
+            
+            local popupStroke = Instance.new("UIStroke")
+            popupStroke.Color = Color3.fromRGB(100, 80, 140)
+            popupStroke.Thickness = 2
+            popupStroke.Parent = State.lootPopup
+            
+            local popupCorner = Instance.new("UICorner")
+            popupCorner.CornerRadius = UDim.new(0, 8)
+            popupCorner.Parent = State.lootPopup
+            
+            -- TopBar
+            local topBar = Instance.new("Frame")
+            topBar.Name = "TopBar"
+            topBar.Size = UDim2.new(1, 0, 0, 28)
+            topBar.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+            topBar.BorderSizePixel = 0
+            topBar.ZIndex = 6
+            topBar.Parent = State.lootPopup
+            
+            local topBarLabel = Instance.new("TextLabel")
+            topBarLabel.Size = UDim2.new(1, -10, 1, 0)
+            topBarLabel.Position = UDim2.new(0, 10, 0, 0)
+            topBarLabel.BackgroundTransparency = 1
+            topBarLabel.Text = "Loot (" .. itemCount .. ")"
+            topBarLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+            topBarLabel.TextXAlignment = Enum.TextXAlignment.Left
+            topBarLabel.TextSize = 14
+            topBarLabel.Font = Enum.Font.GothamBold
+            topBarLabel.ZIndex = 7
+            topBarLabel.Parent = topBar
+            
+            -- Scrollable list
+            local scrollFrame = Instance.new("ScrollingFrame")
+            scrollFrame.Name = "ItemList"
+            scrollFrame.Size = UDim2.new(1, -4, 1, -30)
+            scrollFrame.Position = UDim2.new(0, 2, 0, 29)
+            scrollFrame.BackgroundTransparency = 1
+            scrollFrame.ScrollBarThickness = 6
+            scrollFrame.CanvasSize = UDim2.new(0, 0, 0, itemCount * ITEM_ROW_HEIGHT)
+            scrollFrame.ZIndex = 6
+            scrollFrame.Parent = State.lootPopup
+            
+            local listLayout = Instance.new("UIListLayout")
+            listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+            listLayout.Padding = UDim.new(0, 2)
+            listLayout.Parent = scrollFrame
+            
+            -- Create item rows (condensed logic from original)
+            for i, item in ipairs(items) do
+                local itemRow = Instance.new("TextButton")
+                itemRow.Name = "ItemRow_" .. i
+                itemRow.Size = UDim2.new(1, -8, 0, ITEM_ROW_HEIGHT - 4)
+                itemRow.LayoutOrder = i
+                itemRow.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+                itemRow.Text = ""
+                itemRow.ZIndex = 7
+                itemRow.Parent = scrollFrame
+                
+                -- Icon, name, price labels (same as original)
+                -- ... (condensed for brevity)
+                
+                -- Check if can fit
+                local canFit = callbacks.canItemFit(item)
+                
+                -- Red overlay if full
+                local fullOverlay = Instance.new("Frame")
+                fullOverlay.Name = "BackpackFullOverlay"
+                fullOverlay.Size = UDim2.new(1, 0, 1, 0)
+                fullOverlay.BackgroundColor3 = Color3.fromRGB(100, 20, 20)
+                fullOverlay.BackgroundTransparency = 0.65
+                fullOverlay.BorderSizePixel = 0
+                fullOverlay.ZIndex = 10
+                fullOverlay.Visible = not canFit
+                fullOverlay.Parent = itemRow
+                
+                itemRow.MouseButton1Click:Connect(function()
+                    if canFit and callbacks.collectItem then
+                        callbacks.collectItem(item)
+                    end
+                end)
+            end
+            
+            return State.lootPopup
+        end,
+        
+        closeLootPopup = function()
+            if State.lootPopup then
+                State.lootPopup:Destroy()
+                State.lootPopup = nil
+            end
+        end,
+        
+        createItemInfoPopup = function(itemData, position)
+            if State.itemInfoPopup then
+                State.itemInfoPopup:Destroy()
+            end
+            
+            -- Similar structure to loot popup (condensed)
+            State.itemInfoPopup = Instance.new("Frame")
+            -- ... (full implementation from original)
+            
+            return State.itemInfoPopup
+        end,
+        
+        closeItemInfoPopup = function()
+            if State.itemInfoPopup then
+                State.itemInfoPopup:Destroy()
+                State.itemInfoPopup = nil
+            end
+        end,
+    }
 end
 
-function UIManager.createRigContainer(Config, Data)
-	local UI = UIManager.UI
-	
-	UI.rigContainer = Instance.new("Frame")
-	UI.rigContainer.Name = "2_RigContainer"
-	UI.rigContainer.Size = UDim2.new(1, -20, 0, 470)
-	UI.rigContainer.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-	UI.rigContainer.BackgroundTransparency = 0.5
-	UI.rigContainer.BorderSizePixel = 0
-	UI.rigContainer.ZIndex = 10
-	UI.rigContainer.Parent = UI.contentScroll
-
-	local rigContainerCorner = Instance.new("UICorner")
-	rigContainerCorner.CornerRadius = UDim.new(0, 8)
-	rigContainerCorner.Parent = UI.rigContainer
-
-	local rigContainerStroke = Instance.new("UIStroke")
-	rigContainerStroke.Color = Color3.fromRGB(70, 70, 100)
-	rigContainerStroke.Thickness = 1
-	rigContainerStroke.Parent = UI.rigContainer
-
-	local rigTitle = Instance.new("TextLabel")
-	rigTitle.Name = "RigTitle"
-	rigTitle.Size = UDim2.new(0, 140, 0, 25)
-	rigTitle.Position = UDim2.new(1, -150, 0, 8)
-	rigTitle.BackgroundTransparency = 1
-	rigTitle.Text = "Chest Rig Slot"
-	rigTitle.TextColor3 = Color3.fromRGB(200, 200, 220)
-	rigTitle.TextXAlignment = Enum.TextXAlignment.Right
-	rigTitle.TextSize = 14
-	rigTitle.Font = Enum.Font.GothamBold
-	rigTitle.ZIndex = 11
-	rigTitle.Parent = UI.rigContainer
-
-	UI.rigEquipSlot = Instance.new("Frame")
-	UI.rigEquipSlot.Name = "RigEquipSlot"
-	UI.rigEquipSlot.Size = UDim2.new(0.15, 0, 0.15, 0)
-	UI.rigEquipSlot.Position = UDim2.new(0.02, 0, 0.1, 0)
-	UI.rigEquipSlot.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-	UI.rigEquipSlot.BorderSizePixel = 0
-	UI.rigEquipSlot.ZIndex = 11
-	UI.rigEquipSlot.Parent = UI.rigContainer
-
-	local rigEquipStroke = Instance.new("UIStroke")
-	rigEquipStroke.Color = Color3.fromRGB(80, 80, 120)
-	rigEquipStroke.Thickness = 1
-	rigEquipStroke.Parent = UI.rigEquipSlot
-
-	UI.rigEquipIcon = Instance.new("ImageLabel")
-	UI.rigEquipIcon.Name = "RigEquipIcon"
-	UI.rigEquipIcon.Size = UDim2.new(0.85, 0, 0.85, 0)
-	UI.rigEquipIcon.Position = UDim2.new(0.075, 0, 0.075, 0)
-	UI.rigEquipIcon.BackgroundTransparency = 1
-	UI.rigEquipIcon.Image = "rbxassetid://128194988776053"
-	UI.rigEquipIcon.ImageColor3 = Color3.fromRGB(150, 150, 180)
-	UI.rigEquipIcon.ImageTransparency = 0.5
-	UI.rigEquipIcon.ScaleType = Enum.ScaleType.Fit
-	UI.rigEquipIcon.ZIndex = 12
-	UI.rigEquipIcon.Parent = UI.rigEquipSlot
-
-	UI.gridContainer = Instance.new("Frame")
-	UI.gridContainer.Name = "GridContainer"
-	UI.gridContainer.Size = UDim2.new(0, (Config.CELL_SIZE + Config.CELL_PADDING) * Config.GRID_COLS, 0, (Config.CELL_SIZE + Config.CELL_PADDING) * Config.GRID_ROWS)
-	UI.gridContainer.Position = UDim2.new(0.5, 0, 0, 55)
-	UI.gridContainer.AnchorPoint = Vector2.new(0.5, 0)
-	UI.gridContainer.BackgroundTransparency = 1
-	UI.gridContainer.ZIndex = 10
-	UI.gridContainer.Parent = UI.rigContainer
-
-	Data.gridSlots = {}
-
-	for row = 1, Config.GRID_ROWS do
-		Data.gridSlots[row] = {}
-		for col = 1, Config.GRID_COLS do
-			local slot = Instance.new("Frame")
-			slot.Name = "Slot_" .. row .. "_" .. col
-			slot.Size = UDim2.new(0, Config.CELL_SIZE, 0, Config.CELL_SIZE)
-			slot.Position = UDim2.new(0, (col - 1) * (Config.CELL_SIZE + Config.CELL_PADDING), 0, (row - 1) * (Config.CELL_SIZE + Config.CELL_PADDING))
-			slot.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-			slot.BackgroundTransparency = 1
-			slot.BorderSizePixel = 0
-			slot.ZIndex = 10
-			slot.Parent = UI.gridContainer
-
-			local slotStroke = Instance.new("UIStroke")
-			slotStroke.Name = "SlotStroke"
-			slotStroke.Color = Color3.fromRGB(60, 60, 80)
-			slotStroke.Thickness = 1
-			slotStroke.Parent = slot
-
-			Data.gridSlots[row][col] = slot
-		end
-	end
-	
-	return UI.rigContainer, UI.gridContainer
-end
-
-function UIManager.createItemFrame(itemConfig, width, height, row, col, Config, parentContainer)
-	local itemFrame = Instance.new("Frame")
-	itemFrame.Name = itemConfig.id
-	itemFrame.Size = UDim2.new(0, width * Config.CELL_SIZE + (width - 1) * Config.CELL_PADDING, 0, height * Config.CELL_SIZE + (height - 1) * Config.CELL_PADDING)
-	itemFrame.Position = UDim2.new(0, (col - 1) * (Config.CELL_SIZE + Config.CELL_PADDING), 0, (row - 1) * (Config.CELL_SIZE + Config.CELL_PADDING))
-	
-	local frameColor = ItemConfig.GetRarityFrameColor(itemConfig.rarity or "Common")
-	local frameTransparency = ItemConfig.GetRarityFrameTransparency()
-	itemFrame.BackgroundColor3 = frameColor
-	itemFrame.BackgroundTransparency = frameTransparency
-	itemFrame.BorderSizePixel = 0
-	itemFrame.ZIndex = 15
-	itemFrame.Parent = parentContainer or UIManager.UI.gridContainer
-	
-	local strokeColor = ItemConfig.GetRarityColor(itemConfig.rarity or "Common")
-	
-	local darkerColor = Color3.fromRGB(
-		math.floor(frameColor.R * 255 * 0.6),
-		math.floor(frameColor.G * 255 * 0.6),
-		math.floor(frameColor.B * 255 * 0.6)
-	)
-	local gradient = Instance.new("UIGradient")
-	gradient.Color = ColorSequence.new({
-		ColorSequenceKeypoint.new(0, frameColor),
-		ColorSequenceKeypoint.new(1, darkerColor),
-	})
-	gradient.Rotation = 45
-	gradient.Parent = itemFrame
-	
-	local stroke = Instance.new("UIStroke")
-	stroke.Name = "ItemStroke"
-	stroke.Color = strokeColor
-	stroke.Thickness = 1
-	stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	stroke.Parent = itemFrame
-	
-	if itemConfig.icon and itemConfig.icon ~= "" and itemConfig.icon ~= "rbxassetid://0" then
-		local iconImage = Instance.new("ImageLabel")
-		iconImage.Name = "Icon"
-		iconImage.Size = UDim2.new(1, 0, 1, 0)
-		iconImage.Position = UDim2.new(0, 0, 0, 0)
-		iconImage.BackgroundTransparency = 1
-		iconImage.Image = itemConfig.icon
-		iconImage.ScaleType = Enum.ScaleType.Fit
-		iconImage.ZIndex = 16
-		iconImage.Parent = itemFrame
-	else
-		local icon = Instance.new("Frame")
-		icon.Name = "Icon"
-		icon.Size = UDim2.new(0.6, 0, 0.6, 0)
-		icon.Position = UDim2.new(0.2, 0, 0.2, 0)
-		icon.BackgroundColor3 = itemConfig.color or Color3.fromRGB(200, 200, 200)
-		icon.BackgroundTransparency = 0.3
-		icon.BorderSizePixel = 0
-		icon.ZIndex = 16
-		icon.Parent = itemFrame
-	end
-	
-	return itemFrame
-end
-
-function UIManager.clearHighlights(State)
-	if State.highlightOverlay and State.highlightOverlay.Parent then
-		State.highlightOverlay:Destroy()
-		State.highlightOverlay = nil
-	end
-end
-
-function UIManager.highlightSlots(startRow, startCol, width, height, isValid, Config, State)
-	UIManager.clearHighlights(State)
-	
-	if startRow < 1 or startCol < 1 or startRow > Config.GRID_ROWS or startCol > Config.GRID_COLS then
-		return
-	end
-	
-	local color = isValid and Color3.fromRGB(100, 255, 100) or Color3.fromRGB(255, 100, 100)
-	
-	State.highlightOverlay = Instance.new("Frame")
-	State.highlightOverlay.Name = "HighlightOverlay"
-	State.highlightOverlay.Size = UDim2.new(0, width * Config.CELL_SIZE + (width - 1) * Config.CELL_PADDING, 0, height * Config.CELL_SIZE + (height - 1) * Config.CELL_PADDING)
-	State.highlightOverlay.Position = UDim2.new(0, (startCol - 1) * (Config.CELL_SIZE + Config.CELL_PADDING), 0, (startRow - 1) * (Config.CELL_SIZE + Config.CELL_PADDING))
-	State.highlightOverlay.BackgroundColor3 = color
-	State.highlightOverlay.BackgroundTransparency = 0.7
-	State.highlightOverlay.BorderSizePixel = 0
-	State.highlightOverlay.ZIndex = 14
-	State.highlightOverlay.Parent = UIManager.UI.gridContainer
-	
-	local overlayStroke = Instance.new("UIStroke")
-	overlayStroke.Color = color
-	overlayStroke.Thickness = 3
-	overlayStroke.Parent = State.highlightOverlay
-end
-
-function UIManager.highlightOriginalSlot(row, col, width, height, Config, State)
-	if State.originalSlotOverlay and State.originalSlotOverlay.Parent then
-		State.originalSlotOverlay:Destroy()
-	end
-	
-	State.originalSlotOverlay = Instance.new("Frame")
-	State.originalSlotOverlay.Name = "OriginalSlotOverlay"
-	State.originalSlotOverlay.Size = UDim2.new(0, width * Config.CELL_SIZE + (width - 1) * Config.CELL_PADDING, 0, height * Config.CELL_SIZE + (height - 1) * Config.CELL_PADDING)
-	State.originalSlotOverlay.Position = UDim2.new(0, (col - 1) * (Config.CELL_SIZE + Config.CELL_PADDING), 0, (row - 1) * (Config.CELL_SIZE + Config.CELL_PADDING))
-	State.originalSlotOverlay.BackgroundColor3 = Color3.fromRGB(255, 220, 100)
-	State.originalSlotOverlay.BackgroundTransparency = 0.8
-	State.originalSlotOverlay.BorderSizePixel = 0
-	State.originalSlotOverlay.ZIndex = 12
-	State.originalSlotOverlay.Parent = UIManager.UI.gridContainer
-	
-	local overlayStroke = Instance.new("UIStroke")
-	overlayStroke.Color = Color3.fromRGB(255, 220, 100)
-	overlayStroke.Thickness = 2
-	overlayStroke.Transparency = 0.3
-	overlayStroke.Parent = State.originalSlotOverlay
-end
-
-function UIManager.resetOriginalSlotHighlight(State)
-	if State.originalSlotOverlay and State.originalSlotOverlay.Parent then
-		State.originalSlotOverlay:Destroy()
-		State.originalSlotOverlay = nil
-	end
-end
-
-function UIManager.clearChestHighlights(State)
-	if State.chestHighlightOverlay and State.chestHighlightOverlay.Parent then
-		State.chestHighlightOverlay:Destroy()
-		State.chestHighlightOverlay = nil
-	end
-end
-
-function UIManager.highlightChestSlots(startRow, startCol, width, height, isValid, Config, State)
-	UIManager.clearChestHighlights(State)
-	
-	local chestConf = State.currentChestConfig or { gridRows = 6, gridCols = 6 }
-	if startRow < 1 or startCol < 1 or startRow > chestConf.gridRows or startCol > chestConf.gridCols then
-		return
-	end
-	
-	local color = isValid and Color3.fromRGB(100, 255, 100) or Color3.fromRGB(255, 100, 100)
-	local cellSize = Config.CHEST.CELL_SIZE
-	local cellPadding = Config.CHEST.CELL_PADDING
-	
-	State.chestHighlightOverlay = Instance.new("Frame")
-	State.chestHighlightOverlay.Name = "ChestHighlightOverlay"
-	State.chestHighlightOverlay.Size = UDim2.new(0, width * cellSize + (width - 1) * cellPadding, 0, height * cellSize + (height - 1) * cellPadding)
-	State.chestHighlightOverlay.Position = UDim2.new(0, (startCol - 1) * (cellSize + cellPadding), 0, (startRow - 1) * (cellSize + cellPadding))
-	State.chestHighlightOverlay.BackgroundColor3 = color
-	State.chestHighlightOverlay.BackgroundTransparency = 0.7
-	State.chestHighlightOverlay.BorderSizePixel = 0
-	State.chestHighlightOverlay.ZIndex = 14
-	State.chestHighlightOverlay.Parent = UIManager.UI.gridContainerChest
-	
-	local overlayStroke = Instance.new("UIStroke")
-	overlayStroke.Color = color
-	overlayStroke.Thickness = 3
-	overlayStroke.Parent = State.chestHighlightOverlay
-end
-
-function UIManager.highlightChestOriginalSlot(row, col, width, height, Config, State)
-	if State.chestOriginalSlotOverlay and State.chestOriginalSlotOverlay.Parent then
-		State.chestOriginalSlotOverlay:Destroy()
-	end
-	
-	local cellSize = Config.CHEST.CELL_SIZE
-	local cellPadding = Config.CHEST.CELL_PADDING
-	
-	State.chestOriginalSlotOverlay = Instance.new("Frame")
-	State.chestOriginalSlotOverlay.Name = "ChestOriginalSlotOverlay"
-	State.chestOriginalSlotOverlay.Size = UDim2.new(0, width * cellSize + (width - 1) * cellPadding, 0, height * cellSize + (height - 1) * cellPadding)
-	State.chestOriginalSlotOverlay.Position = UDim2.new(0, (col - 1) * (cellSize + cellPadding), 0, (row - 1) * (cellSize + cellPadding))
-	State.chestOriginalSlotOverlay.BackgroundColor3 = Color3.fromRGB(255, 220, 100)
-	State.chestOriginalSlotOverlay.BackgroundTransparency = 0.8
-	State.chestOriginalSlotOverlay.BorderSizePixel = 0
-	State.chestOriginalSlotOverlay.ZIndex = 12
-	State.chestOriginalSlotOverlay.Parent = UIManager.UI.gridContainerChest
-	
-	local overlayStroke = Instance.new("UIStroke")
-	overlayStroke.Color = Color3.fromRGB(255, 220, 100)
-	overlayStroke.Thickness = 2
-	overlayStroke.Transparency = 0.3
-	overlayStroke.Parent = State.chestOriginalSlotOverlay
-end
-
-function UIManager.resetChestOriginalSlotHighlight(State)
-	if State.chestOriginalSlotOverlay and State.chestOriginalSlotOverlay.Parent then
-		State.chestOriginalSlotOverlay:Destroy()
-		State.chestOriginalSlotOverlay = nil
-	end
-end
-
-function UIManager.clearStorageHighlights(State)
-	if State.storageHighlightOverlay and State.storageHighlightOverlay.Parent then
-		State.storageHighlightOverlay:Destroy()
-		State.storageHighlightOverlay = nil
-	end
-end
-
-function UIManager.highlightStorageSlots(startRow, startCol, width, height, isValid, Config, State)
-	UIManager.clearStorageHighlights(State)
-	
-	if startRow < 1 or startCol < 1 or startRow > Config.STORAGE.GRID_ROWS or startCol > Config.STORAGE.GRID_COLS then
-		return
-	end
-	
-	local color = isValid and Color3.fromRGB(100, 255, 100) or Color3.fromRGB(255, 100, 100)
-	
-	State.storageHighlightOverlay = Instance.new("Frame")
-	State.storageHighlightOverlay.Name = "StorageHighlightOverlay"
-	State.storageHighlightOverlay.Size = UDim2.new(0, width * Config.STORAGE.CELL_SIZE + (width - 1) * Config.STORAGE.CELL_PADDING, 0, height * Config.STORAGE.CELL_SIZE + (height - 1) * Config.STORAGE.CELL_PADDING)
-	State.storageHighlightOverlay.Position = UDim2.new(0, (startCol - 1) * (Config.STORAGE.CELL_SIZE + Config.STORAGE.CELL_PADDING), 0, (startRow - 1) * (Config.STORAGE.CELL_SIZE + Config.STORAGE.CELL_PADDING))
-	State.storageHighlightOverlay.BackgroundColor3 = color
-	State.storageHighlightOverlay.BackgroundTransparency = 0.7
-	State.storageHighlightOverlay.BorderSizePixel = 0
-	State.storageHighlightOverlay.ZIndex = 14
-	State.storageHighlightOverlay.Parent = UIManager.UI.storageGridFrame
-	
-	local stroke = Instance.new("UIStroke")
-	stroke.Color = color
-	stroke.Thickness = 3
-	stroke.Parent = State.storageHighlightOverlay
-end
-
-function UIManager.highlightStorageOriginalSlot(row, col, width, height, Config, State)
-	if State.storageOriginalSlotOverlay and State.storageOriginalSlotOverlay.Parent then
-		State.storageOriginalSlotOverlay:Destroy()
-	end
-	
-	State.storageOriginalSlotOverlay = Instance.new("Frame")
-	State.storageOriginalSlotOverlay.Name = "StorageOriginalSlotOverlay"
-	State.storageOriginalSlotOverlay.Size = UDim2.new(0, width * Config.STORAGE.CELL_SIZE + (width - 1) * Config.STORAGE.CELL_PADDING, 0, height * Config.STORAGE.CELL_SIZE + (height - 1) * Config.STORAGE.CELL_PADDING)
-	State.storageOriginalSlotOverlay.Position = UDim2.new(0, (col - 1) * (Config.STORAGE.CELL_SIZE + Config.STORAGE.CELL_PADDING), 0, (row - 1) * (Config.STORAGE.CELL_SIZE + Config.STORAGE.CELL_PADDING))
-	State.storageOriginalSlotOverlay.BackgroundColor3 = Color3.fromRGB(255, 220, 100)
-	State.storageOriginalSlotOverlay.BackgroundTransparency = 0.8
-	State.storageOriginalSlotOverlay.BorderSizePixel = 0
-	State.storageOriginalSlotOverlay.ZIndex = 12
-	State.storageOriginalSlotOverlay.Parent = UIManager.UI.storageGridFrame
-	
-	local stroke = Instance.new("UIStroke")
-	stroke.Color = Color3.fromRGB(255, 220, 100)
-	stroke.Thickness = 2
-	stroke.Transparency = 0.3
-	stroke.Parent = State.storageOriginalSlotOverlay
-end
-
-function UIManager.resetStorageOriginalSlotHighlight(State)
-	if State.storageOriginalSlotOverlay and State.storageOriginalSlotOverlay.Parent then
-		State.storageOriginalSlotOverlay:Destroy()
-		State.storageOriginalSlotOverlay = nil
-	end
-end
-
-function UIManager.updateActionBar(itemData, State)
-	local UI = UIManager.UI
-	State.actionBarSelectedItem = itemData
-	if itemData then
-		UI.actionBar.Visible = true
-		UI.actionNameLabel.Text = itemData.config.name
-		UI.actionItemIcon.Image = itemData.config.icon or ""
-		
-		local rarity = itemData.config.rarity or "Common"
-		UI.actionItemIcon.BackgroundColor3 = ItemConfig.GetRarityFrameColor(rarity)
-		UI.actionIconStroke.Color = ItemConfig.GetRarityColor(rarity)
-	else
-		UI.actionBar.Visible = false
-		UI.actionNameLabel.Text = ""
-		UI.actionItemIcon.Image = ""
-		
-		UI.actionItemIcon.BackgroundColor3 = ItemConfig.GetRarityFrameColor("Common")
-		UI.actionIconStroke.Color = ItemConfig.GetRarityColor("Common")
-	end
-end
-
-function UIManager.setupButtonHoverEffects()
-	local UI = UIManager.UI
-	
-	UI.infoButton.MouseEnter:Connect(function()
-		TweenService:Create(UI.infoStroke, TweenInfo.new(0.15), {Color = Color3.fromRGB(150, 200, 255)}):Play()
-	end)
-	UI.infoButton.MouseLeave:Connect(function()
-		TweenService:Create(UI.infoStroke, TweenInfo.new(0.15), {Color = Color3.new(1, 1, 1)}):Play()
-	end)
-	UI.dropButton.MouseEnter:Connect(function()
-		TweenService:Create(UI.dropStroke, TweenInfo.new(0.15), {Color = Color3.fromRGB(255, 150, 150)}):Play()
-	end)
-	UI.dropButton.MouseLeave:Connect(function()
-		TweenService:Create(UI.dropStroke, TweenInfo.new(0.15), {Color = Color3.new(1, 1, 1)}):Play()
-	end)
+-- ===== SECTION: HIGHLIGHT MANAGER =====
+function UIManager.HighlightManager()
+    return {
+        -- Unified highlight system for all grids
+        highlightSlots = function(gridType, startRow, startCol, width, height, isValid)
+            local gridConfig = Config[gridType:upper()]
+            local container = UI["gridContainer" .. gridType:gsub("^%l", string.upper)]
+            
+            for r = startRow, startRow + height - 1 do
+                for c = startCol, startCol + width - 1 do
+                    local slot = Data[gridType .. "Slots"][r] and Data[gridType .. "Slots"][r][c]
+                    if slot then
+                        local highlight = Instance.new("Frame")
+                        highlight.Name = "Highlight"
+                        highlight.Size = UDim2.new(1, 0, 1, 0)
+                        highlight.BackgroundColor3 = isValid and Color3.fromRGB(50, 150, 50) or Color3.fromRGB(150, 50, 50)
+                        highlight.BackgroundTransparency = 0.5
+                        highlight.BorderSizePixel = 0
+                        highlight.ZIndex = 12
+                        highlight.Parent = slot
+                        
+                        table.insert(State[gridType .. "Highlights"], highlight)
+                    end
+                end
+            end
+        end,
+        
+        clearHighlights = function(gridType)
+            for _, highlight in ipairs(State[gridType .. "Highlights"]) do
+                if highlight and highlight.Parent then
+                    highlight:Destroy()
+                end
+            end
+            State[gridType .. "Highlights"] = {}
+        end,
+        
+        highlightOriginalSlot = function(gridType, row, col, width, height)
+            -- Implementation (unified for inventory/chest/storage)
+        end,
+        
+        resetOriginalSlotHighlight = function(gridType)
+            if State[gridType .. "OriginalHighlights"] then
+                for _, h in ipairs(State[gridType .. "OriginalHighlights"]) do
+                    if h and h.Parent then h:Destroy() end
+                end
+                State[gridType .. "OriginalHighlights"] = {}
+            end
+        end,
+    }
 end
 
 return UIManager
+Additions: +300-600 lines
+Total: ~900-1200 lines
+
+ðŸŽ¯ Module 3: InputAndDragManager.lua (NEW)
+Target: 800-1000 lines
+Consolidate ALL Input Handling:
+
+local InputAndDragManager = {}
+
+local Config = {
+    TAP_THRESHOLD_TIME = 0.2,
+    TAP_THRESHOLD_DISTANCE = 10,
+    LONG_PRESS_DURATION = 0.4,
+    DOUBLE_TAP_WINDOW = 0.3,
+    DRAG_SCROLL_SPEED = 8,
+    DRAG_SCROLL_EDGE_TOP = 50,
+    DRAG_SCROLL_EDGE_BOTTOM = 50,
+}
+
+-- ============================================================================
+-- DRAG STATE MANAGEMENT
+-- ============================================================================
+
+local DragState = {
+    isDragging = false,
+    draggedItem = nil,
+    dragSource = nil, -- "inventory", "chest", "storage"
+    dragGhost = nil,
+    originalSlot = nil,
+    activeTouchId = nil,
+    isAutoScrolling = false,
+    autoScrollDirection = 0,
+    autoScrollIntensity = 0,
+    lastDragPosition = nil,
+    dragTargetGrid = nil,
+    dragTargetRow = nil,
+    dragTargetCol = nil,
+}
+
+function InputAndDragManager.getDragState()
+    return DragState
+end
+
+function InputAndDragManager.clearDragState()
+    DragState.isDragging = false
+    DragState.draggedItem = nil
+    DragState.dragSource = nil
+    DragState.dragGhost = nil
+    DragState.originalSlot = nil
+    DragState.activeTouchId = nil
+    DragState.isAutoScrolling = false
+    DragState.autoScrollDirection = 0
+    DragState.autoScrollIntensity = 0
+    DragState.lastDragPosition = nil
+    DragState.dragTargetGrid = nil
+    DragState.dragTargetRow = nil
+    DragState.dragTargetCol = nil
+end
+
+-- ============================================================================
+-- DRAG GHOST CREATION
+-- ============================================================================
+
+function InputAndDragManager.createDragGhost(itemData, scale, panelScale)
+    local ghost = itemData.frame:Clone()
+    ghost.Name = "DragGhost"
+    ghost.ZIndex = 100
+    ghost.BackgroundTransparency = 0.3
+    
+    local ghostScale = Instance.new("UIScale")
+    ghostScale.Name = "GhostScale"
+    ghostScale.Scale = panelScale
+    ghostScale.Parent = ghost
+    
+    ghost.AnchorPoint = Vector2.new(0.5, 0.5)
+    
+    return ghost
+end
+
+-- ============================================================================
+-- START DRAG (Unified for all sources)
+-- ============================================================================
+
+function InputAndDragManager.startDrag(source, itemData, inputPos, callbacks)
+    -- source: "inventory", "chest", "storage"
+    
+    -- Disable scrolling during drag
+    if callbacks.disableScroll then
+        callbacks.disableScroll()
+    end
+    
+    DragState.isDragging = true
+    DragState.draggedItem = itemData
+    DragState.dragSource = source
+    DragState.originalSlot = {
+        row = itemData.row,
+        col = itemData.col,
+        width = itemData.width,
+        height = itemData.height
+    }
+    
+    -- Select item
+    if callbacks.selectItem then
+        callbacks.selectItem(itemData)
+    end
+    
+    -- Create ghost
+    DragState.dragGhost = self.createDragGhost(itemData, callbacks.scale, callbacks.panelScale)
+    DragState.dragGhost.Parent = callbacks.screenGui
+    
+    -- Position ghost at cursor
+    local mouseLoc = callbacks.getMouseLocation()
+    DragState.dragGhost.Position = UDim2.new(0, mouseLoc.X / callbacks.scale, 0, mouseLoc.Y / callbacks.scale)
+    
+    -- Hide original
+    itemData.frame.Visible = false
+    
+    -- Highlight original slot
+    if callbacks.highlightOriginal then
+        callbacks.highlightOriginal(source, DragState.originalSlot.row, DragState.originalSlot.col, 
+                                   DragState.originalSlot.width, DragState.originalSlot.height)
+    end
+    
+    -- Remove from grid
+    if callbacks.removeFromGrid then
+        callbacks.removeFromGrid(source, itemData.config.id)
+    end
+end
+
+-- ============================================================================
+-- UPDATE DRAG
+-- ============================================================================
+
+function InputAndDragManager.updateDrag(callbacks)
+    if not DragState.isDragging or not DragState.dragGhost then return end
+    
+    local mousePos = callbacks.getMouseLocation()
+    local scale = callbacks.scale
+    
+    -- Update ghost position
+    DragState.dragGhost.Position = UDim2.new(0, mousePos.X / scale, 0, mousePos.Y / scale)
+    
+    -- Auto-scroll logic
+    local scrollFrame = callbacks.getScrollFrame()
+    if scrollFrame then
+        local scrollAbsPos = scrollFrame.AbsolutePosition
+        local scrollAbsSize = scrollFrame.AbsoluteSize
+        local scrollTop = scrollAbsPos.Y
+        local scrollBottom = scrollAbsPos.Y + scrollAbsSize.Y
+        local dragY = mousePos.Y
+        
+        local topEdge = scrollTop + Config.DRAG_SCROLL_EDGE_TOP
+        local bottomEdge = scrollBottom - Config.DRAG_SCROLL_EDGE_BOTTOM
+        
+        if dragY < topEdge and dragY > (scrollTop - 50) then
+            local intensity = math.clamp(1 - ((dragY - scrollTop) / Config.DRAG_SCROLL_EDGE_TOP), 0, 1)
+            local scrollAmount = Config.DRAG_SCROLL_SPEED * intensity
+            local newY = math.max(0, scrollFrame.CanvasPosition.Y - scrollAmount)
+            scrollFrame.CanvasPosition = Vector2.new(scrollFrame.CanvasPosition.X, newY)
+            DragState.isAutoScrolling = true
+        elseif dragY > bottomEdge and dragY < (scrollBottom + 50) then
+            local intensity = math.clamp((dragY - bottomEdge) / Config.DRAG_SCROLL_EDGE_BOTTOM, 0, 1)
+            local scrollAmount = Config.DRAG_SCROLL_SPEED * intensity
+            local maxY = math.max(0, scrollFrame.CanvasSize.Y.Offset - scrollAbsSize.Y)
+            local newY = math.min(maxY, scrollFrame.CanvasPosition.Y + scrollAmount)
+            scrollFrame.CanvasPosition = Vector2.new(scrollFrame.CanvasPosition.X, newY)
+            DragState.isAutoScrolling = true
+        else
+            DragState.isAutoScrolling = false
+        end
+    end
+    
+    DragState.lastDragPosition = mousePos
+    
+    -- Determine target grid and position
+    local ghostAbsPos = DragState.dragGhost.AbsolutePosition
+    local targetInfo = self.calculateDropTarget(ghostAbsPos, callbacks)
+    
+    DragState.dragTargetGrid = targetInfo.grid
+    DragState.dragTargetRow = targetInfo.row
+    DragState.dragTargetCol = targetInfo.col
+    
+    -- Update highlights
+    if callbacks.updateHighlights then
+        callbacks.updateHighlights(targetInfo, DragState.draggedItem)
+    end
+end
+
+-- ============================================================================
+-- CALCULATE DROP TARGET
+-- ============================================================================
+
+function InputAndDragManager.calculateDropTarget(ghostAbsPos, callbacks)
+    local width = DragState.draggedItem.width
+    local height = DragState.draggedItem.height
+    local itemId = DragState.draggedItem.config.id
+    
+    -- Check all possible grids
+    local grids = callbacks.getGrids()
+    
+    for _, gridInfo in ipairs(grids) do
+        local containerPos = gridInfo.container.AbsolutePosition
+        local containerSize = gridInfo.container.AbsoluteSize
+        local scaledCellSize = (gridInfo.cellSize + gridInfo.cellPadding) * callbacks.scale
+        
+        local isOver = ghostAbsPos.X >= containerPos.X and ghostAbsPos.X <= containerPos.X + containerSize.X
+            and ghostAbsPos.Y >= containerPos.Y and ghostAbsPos.Y <= containerPos.Y + containerSize.Y
+        
+        if isOver then
+            local relX = ghostAbsPos.X - containerPos.X
+            local relY = ghostAbsPos.Y - containerPos.Y
+            local col = math.floor(relX / scaledCellSize + 0.5) + 1
+            local row = math.floor(relY / scaledCellSize + 0.5) + 1
+            
+            return {
+                grid = gridInfo.name,
+                row = row,
+                col = col,
+                isValid = callbacks.canPlace(gridInfo.name, width, height, row, col, itemId)
+            }
+        end
+    end
+    
+    return { grid = nil, row = nil, col = nil, isValid = false }
+end
+
+-- ============================================================================
+-- END DRAG
+-- ============================================================================
+
+function InputAndDragManager.endDrag(inputPos, callbacks)
+    if not DragState.isDragging or not DragState.draggedItem or not DragState.dragGhost then return end
+    
+    -- Re-enable scrolling
+    if callbacks.enableScroll then
+        callbacks.enableScroll()
+    end
+    
+    -- Reset auto-scroll
+    DragState.isAutoScrolling = false
+    DragState.autoScrollDirection = 0
+    DragState.autoScrollIntensity = 0
+    
+    local width = DragState.draggedItem.width
+    local height = DragState.draggedItem.height
+    
+    -- Use tracked target
+    local targetGrid = DragState.dragTargetGrid
+    local row = DragState.dragTargetRow or 1
+    local col = DragState.dragTargetCol or 1
+    
+    local placed = false
+    local newWidth, newHeight = width, height
+    local rotated = false
+    
+    -- Validate placement
+    if targetGrid then
+        if callbacks.canPlace(targetGrid, width, height, row, col, DragState.draggedItem.config.id) then
+            placed = true
+            newWidth, newHeight = width, height
+        elseif callbacks.canPlace(targetGrid, height, width, row, col, DragState.draggedItem.config.id) then
+            placed = true
+            newWidth, newHeight = height, width
+            rotated = true
+        end
+    end
+    
+    -- Handle placement or return to original
+    if placed then
+        if callbacks.handlePlacement then
+            callbacks.handlePlacement(DragState.dragSource, targetGrid, DragState.draggedItem, 
+                                    row, col, newWidth, newHeight, rotated)
+        end
+    else
+        -- Return to original position
+        if callbacks.returnToOriginal then
+            callbacks.returnToOriginal(DragState.dragSource, DragState.draggedItem, DragState.originalSlot)
+        end
+    end
+    
+    -- Cleanup
+    if DragState.dragGhost then
+        DragState.dragGhost:Destroy()
+    end
+    
+    if callbacks.clearHighlights then
+        callbacks.clearHighlights()
+    end
+    
+    if callbacks.resetOriginalHighlight then
+        callbacks.resetOriginalHighlight(DragState.dragSource, DragState.originalSlot)
+    end
+    
+    self.clearDragState()
+end
+
+-- ============================================================================
+-- INPUT HANDLERS (Tap/Long-press/Double-tap logic)
+-- ============================================================================
+
+function InputAndDragManager.createItemInputHandler(itemFrame, itemData, callbacks)
+    local dragStarted = false
+    local isPressed = false
+    local longPressThread = nil
+    local lastTapTime = 0
+    local tapStartTime = 0
+    local tapStartPos = nil
+    
+    itemFrame.InputBegan:Connect(function(input, gameProcessed)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            if DragState.isDragging then return end
+            
+            isPressed = true
+            dragStarted = false
+            tapStartTime = tick()
+            tapStartPos = Vector2.new(input.Position.X, input.Position.Y)
+            
+            -- Long press detection
+            longPressThread = task.spawn(function()
+                task.wait(Config.LONG_PRESS_DURATION)
+                if isPressed and not dragStarted and not DragState.isDragging then
+                    dragStarted = true
+                    self.startDrag(callbacks.source, itemData, tapStartPos, callbacks)
+                end
+            end)
+            
+            if input.UserInputType == Enum.UserInputType.Touch then
+                DragState.activeTouchId = input
+            end
+        end
+    end)
+    
+    itemFrame.InputChanged:Connect(function(input, gameProcessed)
+        if not isPressed or DragState.isDragging then return end
+        
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+            if tapStartPos then
+                local currentPos = Vector2.new(input.Position.X, input.Position.Y)
+                local distance = (currentPos - tapStartPos).Magnitude
+                
+                if not dragStarted and distance > Config.TAP_THRESHOLD_DISTANCE then
+                    dragStarted = true
+                    if longPressThread then
+                        task.cancel(longPressThread)
+                        longPressThread = nil
+                    end
+                    self.startDrag(callbacks.source, itemData, currentPos, callbacks)
+                end
+            end
+        end
+    end)
+    
+    itemFrame.InputEnded:Connect(function(input, gameProcessed)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            if not isPressed then return end
+            
+            local now = tick()
+            
+            if not dragStarted and tapStartPos then
+                local elapsed = now - tapStartTime
+                local currentPos = Vector2.new(input.Position.X, input.Position.Y)
+                local distance = (currentPos - tapStartPos).Magnitude
+                
+                if elapsed < Config.TAP_THRESHOLD_TIME and distance < Config.TAP_THRESHOLD_DISTANCE then
+                    if now - lastTapTime < Config.DOUBLE_TAP_WINDOW then
+                        -- DOUBLE TAP
+                        if callbacks.onDoubleTap then
+                            callbacks.onDoubleTap(itemData)
+                        end
+                        lastTapTime = 0
+                    else
+                        -- SINGLE TAP
+                        if callbacks.onSingleTap then
+                            callbacks.onSingleTap(itemData)
+                        end
+                        lastTapTime = now
+                    end
+                end
+            end
+            
+            isPressed = false
+            tapStartPos = nil
+            dragStarted = false
+            if longPressThread then
+                task.cancel(longPressThread)
+                longPressThread = nil
+            end
+        end
+    end)
+end
+
+function InputAndDragManager.createGridSlotInputHandler(slot, row, col, gridType, callbacks)
+    slot.InputBegan:Connect(function(input, gameProcessed)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            if callbacks.onSlotClick then
+                callbacks.onSlotClick(gridType, row, col)
+            end
+        end
+    end)
+end
+
+-- ============================================================================
+-- GLOBAL INPUT HANDLERS
+-- ============================================================================
+
+function InputAndDragManager.setupGlobalHandlers(services, callbacks)
+    services.UserInputService.InputChanged:Connect(function(input, gameProcessed)
+        if not DragState.isDragging then return end
+        
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+            if input.UserInputType == Enum.UserInputType.Touch then
+                if DragState.activeTouchId and input == DragState.activeTouchId then
+                    self.updateDrag(callbacks)
+                elseif DragState.activeTouchId == nil then
+                    self.updateDrag(callbacks)
+                end
+            else
+                self.updateDrag(callbacks)
+            end
+        end
+    end)
+    
+    services.UserInputService.InputEnded:Connect(function(input, gameProcessed)
+        if not DragState.isDragging then return end
+        
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            self.endDrag(Vector2.new(input.Position.X, input.Position.Y), callbacks)
+            DragState.activeTouchId = nil
+        elseif input.UserInputType == Enum.UserInputType.Touch then
+            if DragState.activeTouchId == nil or input == DragState.activeTouchId then
+                self.endDrag(Vector2.new(input.Position.X, input.Position.Y), callbacks)
+                DragState.activeTouchId = nil
+            end
+        end
+    end)
+end
+
+return InputAndDragManager
+Total: ~800-1000 lines
+
+ðŸŽ¯ Module 4: GridAndPlacementManager.lua (NEW)
+Target: 600-800 lines
+Pure Grid Logic + Smart Placement:
+
+local GridAndPlacementManager = {}
+
+-- ============================================================================
+-- GRID VALIDATION (Pure functions - no state)
+-- ============================================================================
+
+function GridAndPlacementManager.canPlaceItem(gridData, gridRows, gridCols, width, height, row, col, excludeId)
+    if row < 1 or col < 1 then return false end
+    if row + height - 1 > gridRows then return false end
+    if col + width - 1 > gridCols then return false end
+    
+    for r = row, row + height - 1 do
+        for c = col, col + width - 1 do
+            local occupant = gridData[r] and gridData[r][c]
+            if occupant and occupant ~= excludeId then
+                return false
+            end
+        end
+    end
+    
+    return true
+end
+
+function GridAndPlacementManager.canFitItemAnywhere(gridData, gridRows, gridCols, width, height)
+    -- Try normal orientation
+    for row = 1, gridRows do
+        for col = 1, gridCols do
+            if self.canPlaceItem(gridData, gridRows, gridCols, width, height, row, col, nil) then
+                return true
+            end
+        end
+    end
+    
+    -- Try rotated orientation
+    if width ~= height then
+        for row = 1, gridRows do
+            for col = 1, gridCols do
+                if self.canPlaceItem(gridData, gridRows, gridCols, height, width, row, col, nil) then
+                    return true
+                end
+            end
+        end
+    end
+    
+    return false
+end
+
+-- ============================================================================
+-- GRID MANIPULATION
+-- ============================================================================
+
+function GridAndPlacementManager.placeItem(gridData, itemId, width, height, row, col)
+    for r = row, row + height - 1 do
+        for c = col, col + width - 1 do
+            if gridData[r] then
+                gridData[r][c] = itemId
+            end
+        end
+    end
+end
+
+function GridAndPlacementManager.removeItem(gridData, gridRows, gridCols, itemId)
+    for r = 1, gridRows do
+        for c = 1, gridCols do
+            if gridData[r] and gridData[r][c] == itemId then
+                gridData[r][c] = nil
+            end
+        end
+    end
+end
+
+function GridAndPlacementManager.initializeGrid(rows, cols)
+    local grid = {}
+    for row = 1, rows do
+        grid[row] = {}
+        for col = 1, cols do
+            grid[row][col] = nil
+        end
+    end
+    return grid
+end
+
+-- ============================================================================
+-- SMART PLACEMENT ALGORITHM
+-- ============================================================================
+
+function GridAndPlacementManager.findBestPlacement(gridData, gridRows, gridCols, itemWidth, itemHeight, targetRow, targetCol, excludeId)
+    -- Try 1: Exact position, current orientation
+    if self.canPlaceItem(gridData, gridRows, gridCols, itemWidth, itemHeight, targetRow, targetCol, excludeId) then
+        return targetRow, targetCol, itemWidth, itemHeight, false
+    end
+    
+    -- Try 2: Exact position, rotated
+    if self.canPlaceItem(gridData, gridRows, gridCols, itemHeight, itemWidth, targetRow, targetCol, excludeId) then
+        return targetRow, targetCol, itemHeight, itemWidth, true
+    end
+    
+    -- Try 3: Nearby search with NEGATIVE offsets prioritized
+    local maxOffset = math.max(itemWidth, itemHeight)
+    
+    for totalOffset = 1, maxOffset * 2 do
+        for offsetR = 0, math.min(totalOffset, maxOffset) do
+            local offsetC = totalOffset - offsetR
+            if offsetC <= maxOffset then
+                for _, signR in ipairs({-1, 1}) do
+                    for _, signC in ipairs({-1, 1}) do
+                        local tryRow = targetRow + (offsetR * signR)
+                        local tryCol = targetCol + (offsetC * signC)
+                        
+                        -- Try current orientation
+                        if self.canPlaceItem(gridData, gridRows, gridCols, itemWidth, itemHeight, tryRow, tryCol, excludeId) then
+                            return tryRow, tryCol, itemWidth, itemHeight, false
+                        end
+                        
+                        -- Try rotated
+                        if self.canPlaceItem(gridData, gridRows, gridCols, itemHeight, itemWidth, tryRow, tryCol, excludeId) then
+                            return tryRow, tryCol, itemHeight, itemWidth, true
+                        end
+                    end
+                end
+            end
+        end
+    end
+    
+    return nil, nil, nil, nil, nil
+end
+
+function GridAndPlacementManager.findFirstEmptySlot(gridData, gridRows, gridCols, width, height)
+    for row = 1, gridRows do
+        for col = 1, gridCols do
+            if self.canPlaceItem(gridData, gridRows, gridCols, width, height, row, col, nil) then
+                return row, col, width, height, false
+            end
+        end
+    end
+    
+    -- Try rotated
+    if width ~= height then
+        for row = 1, gridRows do
+            for col = 1, gridCols do
+                if self.canPlaceItem(gridData, gridRows, gridCols, height, width, row, col, nil) then
+                    return row, col, height, width, true
+                end
+            end
+        end
+    end
+    
+    return nil, nil, nil, nil, nil
+end
+
+-- ============================================================================
+-- GRID ANALYSIS
+-- ============================================================================
+
+function GridAndPlacementManager.getOccupiedCells(width, height, row, col)
+    local cells = {}
+    for r = row, row + height - 1 do
+        for c = col, col + width - 1 do
+            table.insert(cells, {r, c})
+        end
+    end
+    return cells
+end
+
+function GridAndPlacementManager.getGridOccupancy(gridData, gridRows, gridCols)
+    local occupied = 0
+    local total = gridRows * gridCols
+    
+    for r = 1, gridRows do
+        for c = 1, gridCols do
+            if gridData[r] and gridData[r][c] then
+                occupied = occupied + 1
+            end
+        end
+    end
+    
+    return occupied, total, (occupied / total) * 100
+end
+
+function GridAndPlacementManager.findLargestEmptySpace(gridData, gridRows, gridCols)
+    local maxWidth = 0
+    local maxHeight = 0
+    
+    for row = 1, gridRows do
+        for col = 1, gridCols do
+            if not gridData[row] or not gridData[row][col] then
+                -- Found empty cell, expand to find largest rect
+                local width = 0
+                local height = 0
+                
+                -- Expand width
+                for c = col, gridCols do
+                    if not gridData[row] or not gridData[row][c] then
+                        width = width + 1
+                    else
+                        break
+                    end
+                end
+                
+                -- Expand height
+                for r = row, gridRows do
+                    local rowClear = true
+                    for c = col, col + width - 1 do
+                        if gridData[r] and gridData[r][c] then
+                            rowClear = false
+                            break
+                        end
+                    end
+                    if rowClear then
+                        height = height + 1
+                    else
+                        break
+                    end
+                end
+                
+                maxWidth = math.max(maxWidth, width)
+                maxHeight = math.max(maxHeight, height)
+            end
+        end
+    end
+    
+    return maxWidth, maxHeight
+end
+
+-- ============================================================================
+-- MULTI-GRID MANAGER (Wrapper for inventory/chest/storage)
+-- ============================================================================
+
+function GridAndPlacementManager.createMultiGridManager(configs)
+    local grids = {}
+    
+    for name, config in pairs(configs) do
+        grids[name] = {
+            data = self.initializeGrid(config.rows, config.cols),
+            rows = config.rows,
+            cols = config.cols,
+        }
+    end
+    
+    return {
+        canPlace = function(gridName, width, height, row, col, excludeId)
+            local grid = grids[gridName]
+            if not grid then return false end
+            return self.canPlaceItem(grid.data, grid.rows, grid.cols, width, height, row, col, excludeId)
+        end,
+        
+        place = function(gridName, itemId, width, height, row, col)
+            local grid = grids[gridName]
+            if not grid then return false end
+            self.placeItem(grid.data, itemId, width, height, row, col)
+            return true
+        end,
+        
+        remove = function(gridName, itemId)
+            local grid = grids[gridName]
+            if not grid then return false end
+            self.removeItem(grid.data, grid.rows, grid.cols, itemId)
+            return true
+        end,
+        
+        findBest = function(gridName, itemWidth, itemHeight, targetRow, targetCol, excludeId)
+            local grid = grids[gridName]
+            if not grid then return nil end
+            return self.findBestPlacement(grid.data, grid.rows, grid.cols, itemWidth, itemHeight, targetRow, targetCol, excludeId)
+        end,
+        
+        canFitAnywhere = function(gridName, width, height)
+            local grid = grids[gridName]
+            if not grid then return false end
+            return self.canFitItemAnywhere(grid.data, grid.rows, grid.cols, width, height)
+        end,
+        
+        getGrid = function(gridName)
+            return grids[gridName]
+        end,
+        
+        resetGrid = function(gridName)
+            local grid = grids[gridName]
+            if grid then
+                grid.data = self.initializeGrid(grid.rows, grid.cols)
+            end
+        end,
+    }
+end
+
+return GridAndPlacementManager
+Total: ~600-800 lines
+
+ðŸŽ¯ Module 5: InventoryLoot.lua (MAIN - REFACTORED)
+Target: 600-800 lines
+Orchestrator Only:
+
+-- ============================================================================
+-- SERVICES & MODULES
+-- ============================================================================
+
+local player = game:GetService("Players").LocalPlayer
+local Services = {
+    Players = game:GetService("Players"),
+    TweenService = game:GetService("TweenService"),
+    UserInputService = game:GetService("UserInputService"),
+    RunService = game:GetService("RunService"),
+    ReplicatedStorage = game:GetService("ReplicatedStorage"),
+    playerGui = player:WaitForChild("PlayerGui"),
+}
+
+-- Load Modules
+local StateAndDataManager = require(script:WaitForChild("StateAndDataManager"))
+local UIManager = require(script:WaitForChild("UIManager"))
+local InputAndDragManager = require(script:WaitForChild("InputAndDragManager"))
+local GridAndPlacementManager = require(script:WaitForChild("GridAndPlacementManager"))
+
+-- Shared Configs
+local RigsBackpackConfig = require(Services.ReplicatedStorage:WaitForChild("RigsBackpackConfig"))
+local ItemConfig = require(Services.ReplicatedStorage:WaitForChild("ItemConfig"))
+local ChestConfig = require(Services.ReplicatedStorage:WaitForChild("ChestConfig", 5))
+
+-- Initialize
+StateAndDataManager.initialize()
+local Config = StateAndDataManager.Config
+local Data = StateAndDataManager.Data
+local State = StateAndDataManager.State
+local UI = UIManager.UI
+
+-- Network utilities
+local NetworkManager = StateAndDataManager.NetworkManager()
+local ProximityDetector = StateAndDataManager.ProximityDetector()
+local Utils = StateAndDataManager.Utils()
+
+-- UI factories
+local ItemFrameFactory = UIManager.ItemFrameFactory()
+local PopupManager = UIManager.PopupManager()
+local HighlightManager = UIManager.HighlightManager()
+
+-- Multi-grid manager
+local GridManager = GridAndPlacementManager.createMultiGridManager({
+    inventory = { rows = Config.GRID_ROWS, cols = Config.GRID_COLS },
+    chest = { rows = Config.CHEST.GRID_ROWS, cols = Config.CHEST.GRID_COLS },
+    storage = { rows = Config.STORAGE.GRID_ROWS, cols = Config.STORAGE.GRID_COLS },
+})
+
+-- ============================================================================
+-- UI INITIALIZATION
+-- ============================================================================
+
+UIManager.createBaseUI(Services.playerGui, Services)
+UIManager.createInventoryButton(Config)
+UIManager.createMainPanel(Config)
+UIManager.createActionBar()
+UIManager.createItemInfoModal()
+UIManager.createContentScroll()
+UIManager.createRigContainer(Config, Data)
+UIManager.createBackpackContainer()
+UIManager.createLootInfoContainer()
+UIManager.createArmorContainer(Data)
+UIManager.createPlayerAndChestContainers(Data, Config)
+UIManager.createCharacterViewport(State)
+UIManager.createStatusContainer()
+UIManager.createStorageContainer(Data, Config, setupStorageSlotInput)
+UIManager.createStorageOpenButton()
+
+-- ============================================================================
+-- INPUT SYSTEM SETUP
+-- ============================================================================
+
+local function createInputCallbacks(source)
+    return {
+        source = source,
+        scale = UI.uiScale.Scale,
+        panelScale = UI.panelScale.Scale,
+        screenGui = UI.screenGui,
+        
+        getMouseLocation = function()
+            return Services.UserInputService:GetMouseLocation()
+        end,
+        
+        getScrollFrame = function()
+            return UI.contentScroll
+        end,
+        
+        disableScroll = function()
+            if UI.contentScroll then
+                UI.contentScroll.ScrollingEnabled = false
+            end
+        end,
+        
+        enableScroll = function()
+            if UI.contentScroll then
+                UI.contentScroll.ScrollingEnabled = true
+            end
+        end,
+        
+        selectItem = function(itemData)
+            -- Selection logic (call UIManager or inline)
+        end,
+        
+        highlightOriginal = function(source, row, col, width, height)
+            HighlightManager.highlightOriginalSlot(source, row, col, width, height)
+        end,
+        
+        removeFromGrid = function(source, itemId)
+            GridManager.remove(source, itemId)
+        end,
+        
+        getGrids = function()
+            return {
+                { name = "inventory", container = UI.gridContainer, cellSize = Config.CELL_SIZE, cellPadding = Config.CELL_PADDING },
+                { name = "chest", container = UI.gridContainerChest, cellSize = Config.CHEST.CELL_SIZE, cellPadding = Config.CHEST.CELL_PADDING },
+                { name = "storage", container = UI.storageGridFrame, cellSize = Config.STORAGE.CELL_SIZE, cellPadding = Config.STORAGE.CELL_PADDING },
+            }
+        end,
+        
+        canPlace = function(gridName, width, height, row, col, itemId)
+            return GridManager.canPlace(gridName, width, height, row, col, itemId)
+        end,
+        
+        updateHighlights = function(targetInfo, draggedItem)
+            HighlightManager.clearHighlights(targetInfo.grid)
+            if targetInfo.grid and targetInfo.row and targetInfo.col then
+                HighlightManager.highlightSlots(targetInfo.grid, targetInfo.row, targetInfo.col, 
+                                               draggedItem.width, draggedItem.height, targetInfo.isValid)
+            end
+        end,
+        
+        clearHighlights = function()
+            HighlightManager.clearHighlights("inventory")
+            HighlightManager.clearHighlights("chest")
+            HighlightManager.clearHighlights("storage")
+        end,
+        
+        resetOriginalHighlight = function(source, originalSlot)
+            HighlightManager.resetOriginalSlotHighlight(source)
+        end,
+        
+        handlePlacement = function(fromGrid, toGrid, itemData, row, col, newWidth, newHeight, rotated)
+            if fromGrid == "inventory" and toGrid == "chest" then
+                NetworkManager.depositToChest(itemData.config.id, State.currentChestModel, row, col, newWidth, newHeight)
+                -- Remove from local inventory
+                if itemData.frame then itemData.frame:Destroy() end
+                Data.inventoryItems[itemData.config.id] = nil
+                
+            elseif fromGrid == "inventory" and toGrid == "storage" then
+                NetworkManager.moveToStorage(itemData.config.id, row, col)
+                if itemData.frame then itemData.frame:Destroy() end
+                Data.inventoryItems[itemData.config.id] = nil
+                
+            elseif fromGrid == "chest" and toGrid == "inventory" then
+                NetworkManager.collectItem(itemData.name, State.currentChestModel.PrimaryPart.Position)
+                if itemData.frame then itemData.frame:Destroy() end
+                Data.chestItems[itemData.config.id] = nil
+                
+            elseif fromGrid == "storage" and toGrid == "inventory" then
+                NetworkManager.moveToInventory(itemData.config.id, row, col, rotated)
+                if itemData.frame then itemData.frame:Destroy() end
+                Data.storageItems[itemData.config.id] = nil
+                
+            elseif fromGrid == toGrid then
+                -- Move within same grid
+                GridManager.place(toGrid, itemData.config.id, newWidth, newHeight, row, col)
+                itemData.row = row
+                itemData.col = col
+                itemData.width = newWidth
+                itemData.height = newHeight
+                ItemFrameFactory.updateItemFramePosition(itemData.frame, row, col, newWidth, newHeight, 
+                                                        Config[toGrid:upper()].CELL_SIZE, 
+                                                        Config[toGrid:upper()].CELL_PADDING)
+                itemData.frame.Visible = true
+                
+                -- Notify server
+                NetworkManager.updateItemPosition(itemData.config.id, row, col, rotated)
+            end
+        end,
+        
+        returnToOriginal = function(source, itemData, originalSlot)
+            GridManager.place(source, itemData.config.id, originalSlot.width, originalSlot.height, originalSlot.row, originalSlot.col)
+            itemData.frame.Visible = true
+        end,
+        
+        onSingleTap = function(itemData)
+            -- Toggle selection
+            if State.selectedItem and State.selectedItem.config.id == itemData.config.id then
+                -- Deselect
+                State.selectedItem = nil
+            else
+                State.selectedItem = itemData
+            end
+        end,
+        
+        onDoubleTap = function(itemData)
+            -- Quick transfer logic
+            if UI.ChestContainer.Visible then
+                -- Transfer to chest
+                local row, col = GridManager.findBest("chest", itemData.width, itemData.height, 1, 1, nil)
+                if row then
+                    NetworkManager.depositToChest(itemData.config.id, State.currentChestModel, row, col, itemData.width, itemData.height)
+                    if itemData.frame then itemData.frame:Destroy() end
+                    Data.inventoryItems[itemData.config.id] = nil
+                end
+            elseif State.isStorageOpen then
+                -- Transfer to storage
+                NetworkManager.moveToStorage(itemData.config.id, nil, nil)
+                if itemData.frame then itemData.frame:Destroy() end
+                Data.inventoryItems[itemData.config.id] = nil
+            end
+        end,
+    }
+end
+
+-- Setup input handlers for all items
+local function setupItemInputs()
+    for itemId, itemData in pairs(Data.inventoryItems) do
+        InputAndDragManager.createItemInputHandler(itemData.frame, itemData, createInputCallbacks("inventory"))
+    end
+    
+    for itemId, itemData in pairs(Data.chestItems) do
+        InputAndDragManager.createItemInputHandler(itemData.frame, itemData, createInputCallbacks("chest"))
+    end
+    
+    for itemId, itemData in pairs(Data.storageItems) do
+        InputAndDragManager.createItemInputHandler(itemData.frame, itemData, createInputCallbacks("storage"))
+    end
+end
+
+-- Setup global input handlers
+InputAndDragManager.setupGlobalHandlers(Services, createInputCallbacks("global"))
+
+-- ============================================================================
+-- SERVER SYNC
+-- ============================================================================
+
+NetworkManager.setupListeners({
+    onInventorySync = function(inventoryData)
+        -- Clear and reload inventory
+        for id, itemData in pairs(Data.inventoryItems) do
+            if itemData.frame then itemData.frame:Destroy() end
+        end
+        Data.inventoryItems = {}
+        GridManager.resetGrid("inventory")
+        
+        -- Load items
+        if inventoryData and inventoryData.items then
+            for _, itemInfo in ipairs(inventoryData.items) do
+                local itemData = {
+                    id = itemInfo.id,
+                    -- ... (rest of item data)
+                }
+                local frame = ItemFrameFactory.createItemFrame(itemData, "inventory", Config)
+                frame.Parent = UI.gridContainer
+                Data.inventoryItems[itemData.id] = itemData
+                GridManager.place("inventory", itemData.id, itemData.width, itemData.height, itemData.row, itemData.col)
+            end
+        end
+        
+        setupItemInputs()
+    end,
+    
+    onChestSync = function(chestData)
+        -- Similar logic for chest
+    end,
+    
+    onStorageSync = function(storageData)
+        -- Similar logic for storage
+    end,
+    
+    onArmorSync = function(armorData)
+        -- Update armor slots
+    end,
+    
+    onInventoryFull = function(itemName)
+        Utils.flashFrame(UI.mainPanel, Color3.fromRGB(100, 30, 30), 0.3)
+    end,
+})
+
+-- ============================================================================
+-- PROXIMITY DETECTION LOOP
+-- ============================================================================
+
+Services.RunService.Heartbeat:Connect(function()
+    local character = player.Character
+    if not character then return end
+    
+    local hrp = character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+    
+    -- Find nearby items
+    local nearbyItems = ProximityDetector.findNearbyItems(hrp.Position, Config.DROPPED_ITEM_DISTANCE)
+    
+    if #nearbyItems > 0 then
+        PopupManager.createLootPopup(nearbyItems, {
+            canItemFit = function(item)
+                return Utils.canItemFitInInventory(item)
+            end,
+            collectItem = function(item)
+                NetworkManager.collectItem(item.Name, ProximityDetector.getItemPosition(item))
+            end,
+        }, Config)
+    else
+        PopupManager.closeLootPopup()
+    end
+    
+    -- Find nearby chest
+    local nearbyChest = ProximityDetector.findNearbyChest(hrp.Position)
+    State.nearbyChest = nearbyChest
+    if UI.chestOpenButton then
+        UI.chestOpenButton.Visible = nearbyChest ~= nil and not State.isPanelOpen
+    end
+    
+    -- Find nearby storage
+    local nearbyStorage = ProximityDetector.findNearbyStorage(hrp.Position)
+    State.nearbyStorage = nearbyStorage
+    if UI.storageOpenButton then
+        UI.storageOpenButton.Visible = nearbyStorage ~= nil and not State.isPanelOpen
+    end
+end)
+
+-- ============================================================================
+-- PANEL OPEN/CLOSE
+-- ============================================================================
+
+local function openPanel(fromChest)
+    State.isPanelOpen = true
+    -- ... (panel logic)
+end
+
+local function closePanel()
+    State.isPanelOpen = false
+    -- ... (cleanup logic)
+end
+
+UI.invButton.MouseButton1Click:Connect(function()
+    Utils.playSound("Inventory")
+    if State.isPanelOpen then
+        closePanel()
+    else
+        openPanel()
+    end
+end)
+
+UI.closeButton.MouseButton1Click:Connect(function()
+    Utils.playSound("InventoryClose")
+    closePanel()
+end)
+Total: ~600-800 lines
+
+ðŸ“Š Final Structure Summary
+File	Lines	Purpose
+InventoryLoot.lua	600-800	Main orchestrator
+StateAndDataManager.lua	800-1000	State + Network + Proximity + Utils
+UIManager.lua	900-1200	UI creation + Popups + Highlights + Frame Factory
+InputAndDragManager.lua	800-1000	Input handling + Drag system
+GridAndPlacementManager.lua	600-800	Grid logic + Smart placement
+Total: ~3700-4800 lines (vs 4259 original)
+
+âœ… Benefits of This Approach
+Fewer Files: 5 modules instead of 15+
+Logical Grouping: Related functions stay together
+Easy Navigation: Each file is 600-1200 lines (manageable)
+No Breaking Changes: All existing functionality preserved
+Testable: Each module can be tested independently
+Maintainable: Clear separation of concerns
+ðŸš€ Implementation Order
+Create InputAndDragManager.lua - Extract all input/drag logic
+Create GridAndPlacementManager.lua - Extract grid algorithms
+Enhance StateAndDataManager.lua - Add Network, Proximity, Utils sections
+Enhance UIManager.lua - Add ItemFrameFactory, PopupManager, HighlightManager
+Refactor InventoryLoot.lua - Use new modules, remove duplicates
+Each step can be done incrementally with full testing.
