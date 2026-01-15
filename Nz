@@ -19,98 +19,13 @@ local Services = {
 
 -- RigsBackpackConfig for shared grid dimensions with server
 local RigsBackpackConfig = require(Services.ReplicatedStorage:WaitForChild("RigsBackpackConfig"))
-local currentRig = RigsBackpackConfig.GetRig("Default")
+local StateAndDataManager = require(script:WaitForChild("StateAndDataManager"))
+local UIManager = require(script:WaitForChild("UIManager"))
 
-local Config = {
-	GRID_COLS = currentRig.gridCols,
-	GRID_ROWS = currentRig.gridRows,
-	CELL_SIZE = currentRig.cellSize,
-	CELL_PADDING = currentRig.cellPadding,
-	DROPPED_ITEM_DISTANCE = 5,  -- Fixed distance for dropped items
-	DRAG_SCROLL_EDGE_TOP = 120,   -- Larger area for scrolling UP
-	DRAG_SCROLL_EDGE_BOTTOM = 50, -- Smaller area for scrolling DOWN
-	DRAG_SCROLL_SPEED = 12,
-	ARMOR_SLOT_SIZE = 50,
-	PANEL_PADDING = 20,
-	UI = {
-		invBtnSize = UDim2.new(0, 57, 0, 66),
-		invBtnPos = UDim2.new(0, 15, 0.5, 39),
-		invEmojiSize = 28,
-		invLabelSize = 12,
-		titleTextSize = 18,
-		closeBtnSize = UDim2.new(0, 32, 0, 32),
-	},
-	CHEST = {
-		GRID_ROWS = 6,
-		GRID_COLS = 6,
-		CELL_SIZE = 50,
-		CELL_PADDING = 4,
-	},
-	STORAGE = {
-		GRID_ROWS = 11,
-		GRID_COLS = 6,
-		CELL_SIZE = 50,
-		CELL_PADDING = 4,
-	},
-	LONG_PRESS_DURATION = 0.4,
-	TAP_THRESHOLD_TIME = 0.2,
-	TAP_THRESHOLD_DISTANCE = 10,
-}
-
-
-local Data = {
-	gridData = {},
-	inventoryItems = {},
-	chestGridData = {},
-	chestItems = {},
-	storageGridData = {},
-	storageItems = {},
-}
-
-local State = {
-	isDragging = false,
-	draggedItem = nil,
-	dragGhost = nil,
-	originalSlot = { row = 0, col = 0 },
-	selectedItem = nil,
-	selectionHighlight = nil,
-	isAutoScrolling = false,
-	autoScrollDirection = 0,
-	autoScrollIntensity = 0,
-	lastDragPosition = nil,
-	isPanelOpen = false,
-	isLootingChest = false,
-	currentChestModel = nil,
-	currentChestConfig = nil,
-	currentInventoryAnimTrack = nil,
-	movementConnection = nil,
-	itemInfoPopup = nil,
-	longPressStartTime = nil,
-	longPressItem = nil,
-	activeTouchId = nil,
-	isRevealSequenceRunning = false,
-	isFirstChestSync = true,
-	lastOpenedChest = nil,  -- Track which chest was last opened
-	tapStartTime = 0,
-	tapStartPos = Vector2.new(0, 0),
-	lootingDelayTask = nil,
-	lootingMoveConnection = nil,
-	dragSource = nil,
-	dragSourceChestData = nil,
-	isStorageOpen = false,
-	nearbyStorage = nil,
-}
-
-local UI = {
-	screenGui = nil,
-	mainPanel = nil,
-	actionBar = nil,
-	itemInfoModal = nil,
-	chestOpenButton = nil,
-	blurEffect = nil,
-	infoStroke = nil,
-	dropStroke = nil,
-}
+local Config = StateAndDataManager.Config
+local Data = StateAndDataManager.Data
+local State = StateAndDataManager.State
+local UI = UIManager.UI
 
 -- Remote events (will be created by server)
 local Remotes = Services.ReplicatedStorage:WaitForChild("Remotes", 10)
@@ -134,546 +49,42 @@ local ItemConfig = require(Services.ReplicatedStorage:WaitForChild("ItemConfig")
 -- Chest Configuration (Shared Module) - needed for chest detection
 local ChestConfig = require(Services.ReplicatedStorage:WaitForChild("ChestConfig", 5))
 
--- Initialize gridData
-for row = 1, Config.GRID_ROWS do
-	Data.gridData[row] = {}
-	for col = 1, Config.GRID_COLS do
-		Data.gridData[row][col] = nil
-	end
-end
+StateAndDataManager.initialize()
 
 -- ============================================================================
--- CREATE MAIN UI
+-- CREATE MAIN UI (delegating to UIManager)
 -- ============================================================================
 
-local function createBaseUI()
-	UI.screenGui = Instance.new("ScreenGui")
-	UI.screenGui.Name = "GridInventoryUI"
-	UI.screenGui.ResetOnSpawn = false
-	UI.screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-	UI.screenGui.IgnoreGuiInset = true
-	UI.screenGui.DisplayOrder = 100
-	UI.screenGui.Parent = Services.playerGui
+UIManager.createBaseUI(Services.playerGui, Services)
 
-	UI.uiScale = Instance.new("UIScale")
-	UI.uiScale.Name = "ResponsiveScale"
-	UI.uiScale.Scale = 1
-	UI.uiScale.Parent = UI.screenGui
-
-	local function updateScale()
-		local camera = workspace.CurrentCamera
-		if not camera then return end
-		local viewport = camera.ViewportSize
-		local minDimension = math.min(viewport.X, viewport.Y)
-		local scale = math.clamp(minDimension / 700, 0.7, 1.3)
-		UI.uiScale.Scale = scale
-	end
-
-	workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(updateScale)
-	task.spawn(updateScale)
-end
-
-createBaseUI()
-
--- Lighting effects
-UI.blurEffect = Services.Lighting:FindFirstChild("Blur")
-
-local function createInventoryButton()
-	-- Inventory Button
-	UI.invButton = Instance.new("TextButton")
-	UI.invButton.Name = "InventoryButton"
-	UI.invButton.Size = Config.UI.invBtnSize
-	UI.invButton.Position = Config.UI.invBtnPos
-	UI.invButton.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-	UI.invButton.BorderSizePixel = 0
-	UI.invButton.Text = ""
-	UI.invButton.Parent = UI.screenGui
-
-	local invCorner = Instance.new("UICorner")
-	invCorner.CornerRadius = UDim.new(0, 10)
-	invCorner.Parent = UI.invButton
-
-	local invStroke = Instance.new("UIStroke")
-	invStroke.Color = Color3.fromRGB(139, 92, 246)
-	invStroke.Thickness = 2
-	invStroke.Parent = UI.invButton
-
-	local invEmoji = Instance.new("TextLabel")
-	invEmoji.Size = UDim2.new(1, 0, 0, 40)
-	invEmoji.Position = UDim2.new(0, 0, 0, 2)
-	invEmoji.BackgroundTransparency = 1
-	invEmoji.Text = "ðŸ“¦"
-	invEmoji.TextSize = Config.UI.invEmojiSize
-	invEmoji.Font = Enum.Font.GothamBold
-	invEmoji.Parent = UI.invButton
-
-	local invLabel = Instance.new("TextLabel")
-	invLabel.Size = UDim2.new(1, 0, 0, 20)
-	invLabel.Position = UDim2.new(0, 0, 0, 42)
-	invLabel.BackgroundTransparency = 1
-	invLabel.Text = "BAG"
-	invLabel.TextColor3 = Color3.new(1, 1, 1)
-	invLabel.TextSize = Config.UI.invLabelSize
-	invLabel.Font = Enum.Font.GothamBold
-	invLabel.Parent = UI.invButton
-
-	-- TOUCH BLOCKER (Mobile - prevents camera movement when inventory is open)
-	UI.touchBlocker = Instance.new("Frame")
-	UI.touchBlocker.Name = "TouchBlocker"
-	UI.touchBlocker.Size = UDim2.new(1, 0, 1, 0)
-	UI.touchBlocker.Position = UDim2.new(0, 0, 0, 0)
-	UI.touchBlocker.BackgroundColor3 = Color3.new(0, 0, 0)
-	UI.touchBlocker.BackgroundTransparency = 0.5
-	UI.touchBlocker.BorderSizePixel = 0
-	UI.touchBlocker.Visible = false
-	UI.touchBlocker.ZIndex = 9  -- Below panel
-	UI.touchBlocker.Active = true  -- This sinks all touch input
-	UI.touchBlocker.Parent = UI.screenGui
-end
-
-createInventoryButton()
+UIManager.createInventoryButton(Config)
+UIManager.createMainPanel(Config)
 
 -- ============================================================================
--- MAIN PANEL
+-- ITEM ACTION BAR (delegating to UIManager)
 -- ============================================================================
 
-local function createMainPanel()
-	UI.mainPanel = Instance.new("Frame")
-	UI.mainPanel.Name = "MainPanel"
-	UI.mainPanel.Size = UDim2.new(1, 0, 1, 0)  -- Full screen
-	UI.mainPanel.Position = UDim2.new(0, 0, 0, 0)  -- Top-left corner
-	UI.mainPanel.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-	UI.mainPanel.BorderSizePixel = 0
-	UI.mainPanel.Visible = false
-	UI.mainPanel.ZIndex = 10
-	UI.mainPanel.ClipsDescendants = true  -- Prevent child overflow
-	UI.mainPanel.Parent = UI.screenGui
+UIManager.createActionBar()
+UIManager.setupButtonHoverEffects()
 
-	UI.panelScale = Instance.new("UIScale")
-	UI.panelScale.Scale = 0.8
-	UI.panelScale.Parent = UI.mainPanel
-
-
-
-	-- White gradient on UI.mainPanel (white at top, fading down)
-	local panelGradient = Instance.new("UIGradient")
-	panelGradient.Color = ColorSequence.new({
-		ColorSequenceKeypoint.new(0, Color3.new(1, 1, 1)),      -- White at top
-		ColorSequenceKeypoint.new(0.3, Color3.fromRGB(30, 30, 40)),  -- Dark gray
-		ColorSequenceKeypoint.new(1, Color3.new(0, 0, 0)),      -- Black at bottom
-	})
-	panelGradient.Rotation = 90  -- Top to bottom
-	panelGradient.Parent = UI.mainPanel
-
-	-- Background ImageLabel (same size as UI.mainPanel, for custom background image)
-	local panelBackgroundImage = Instance.new("ImageLabel")
-	panelBackgroundImage.Name = "BackgroundImage"
-	panelBackgroundImage.Size = UDim2.new(1, 0, 1, 0)  -- Full size
-	panelBackgroundImage.Position = UDim2.new(0, 0, 0, 0)
-	panelBackgroundImage.BackgroundTransparency = 1
-	panelBackgroundImage.Image = "rbxassetid://115143845524149"  -- Background image
-	panelBackgroundImage.ScaleType = Enum.ScaleType.Stretch
-	panelBackgroundImage.ZIndex = 1  -- Lowest level, behind all other content
-	panelBackgroundImage.Parent = UI.mainPanel
-
-
-	-- Close button
-	UI.closeButton = Instance.new("TextButton")
-	UI.closeButton.Name = "CloseButton"
-	UI.closeButton.Size = Config.UI.closeBtnSize
-	UI.closeButton.Position = UDim2.new(1, -42, 0, 8)
-	UI.closeButton.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
-	UI.closeButton.BackgroundTransparency = 1 -- Made fully transparent background
-	UI.closeButton.BorderSizePixel = 0
-	UI.closeButton.Text = "X"
-	UI.closeButton.TextColor3 = Color3.new(1, 1, 1)
-	UI.closeButton.TextSize = 16
-	UI.closeButton.Font = Enum.Font.GothamBold
-	UI.closeButton.ZIndex = 11
-	UI.closeButton.Parent = UI.mainPanel
-
-	local closeCorner = Instance.new("UICorner")
-	closeCorner.CornerRadius = UDim.new(0, 8)
-	closeCorner.Parent = UI.closeButton
-end
-
-createMainPanel()
-
--- ============================================================================
--- ITEM ACTION BAR (at bottom, shown when item selected)
--- ============================================================================
-
-
-local function createActionBar()
-	UI.actionBar = Instance.new("Frame")
-	UI.actionBar.Name = "ActionBar"
-	UI.actionBar.Size = UDim2.new(1, -20, 0, 50)
-	UI.actionBar.Position = UDim2.new(0, 10, 1, -60)  -- At bottom with small margin
-	UI.actionBar.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-	UI.actionBar.BorderSizePixel = 0
-	UI.actionBar.ZIndex = 20
-	UI.actionBar.Visible = false  -- Hidden by default
-	UI.actionBar.Parent = UI.mainPanel
-
-	local actionBarCorner = Instance.new("UICorner")
-	actionBarCorner.CornerRadius = UDim.new(0, 8)
-	actionBarCorner.Parent = UI.actionBar
-
-	local actionBarStroke = Instance.new("UIStroke")
-	actionBarStroke.Color = Color3.fromRGB(80, 80, 120)
-	actionBarStroke.Thickness = 2
-	actionBarStroke.Parent = UI.actionBar
-
-	-- Item Icon (left side) - uses RarityFrameColors (updated dynamically when item selected)
-	UI.actionItemIcon = Instance.new("ImageLabel")
-	UI.actionItemIcon.Name = "ItemIcon"
-	UI.actionItemIcon.Size = UDim2.new(0, 40, 0, 40)
-	UI.actionItemIcon.Position = UDim2.new(0, 8, 0.5, -20)
-	UI.actionItemIcon.BackgroundColor3 = ItemConfig.GetRarityFrameColor("Common")
-	UI.actionItemIcon.BackgroundTransparency = ItemConfig.GetRarityFrameTransparency()
-	UI.actionItemIcon.BorderSizePixel = 0
-	UI.actionItemIcon.Image = ""  -- Will be set when item is selected
-	UI.actionItemIcon.ScaleType = Enum.ScaleType.Fit
-	UI.actionItemIcon.ZIndex = 21
-	UI.actionItemIcon.Parent = UI.actionBar
-	
-	-- Stroke for action icon (updated dynamically based on item rarity)
-	UI.actionIconStroke = Instance.new("UIStroke")
-	UI.actionIconStroke.Name = "IconStroke"
-	UI.actionIconStroke.Color = ItemConfig.GetRarityColor("Common")
-	UI.actionIconStroke.Thickness = 1
-	UI.actionIconStroke.Parent = UI.actionItemIcon
-
-	-- Item Name Label (next to icon)
-	UI.actionNameLabel = Instance.new("TextLabel")
-	UI.actionNameLabel.Name = "NameLabel"
-	UI.actionNameLabel.Size = UDim2.new(0.4, -60, 0, 20)
-	UI.actionNameLabel.Position = UDim2.new(0, 55, 0.5, -10)
-	UI.actionNameLabel.BackgroundTransparency = 1
-	UI.actionNameLabel.Text = "Item Name"
-	UI.actionNameLabel.TextColor3 = Color3.new(1, 1, 1)
-	UI.actionNameLabel.TextXAlignment = Enum.TextXAlignment.Left
-	UI.actionNameLabel.TextSize = 13
-	UI.actionNameLabel.Font = Enum.Font.GothamBold
-	UI.actionNameLabel.ZIndex = 21
-	UI.actionNameLabel.Parent = UI.actionBar
-
-	-- Info Button (right side, next to drop)
-	UI.infoButton = Instance.new("TextButton")
-	UI.infoButton.Name = "InfoButton"
-	UI.infoButton.Size = UDim2.new(0, 80, 0, 32)
-	UI.infoButton.Position = UDim2.new(1, -185, 0.5, -16)
-	UI.infoButton.BackgroundColor3 = Color3.fromRGB(40, 40, 80)
-	UI.infoButton.BorderSizePixel = 0
-	UI.infoButton.Text = "INFO"
-	UI.infoButton.TextColor3 = Color3.new(1, 1, 1)
-	UI.infoButton.TextSize = 12
-	UI.infoButton.Font = Enum.Font.GothamBold
-	UI.infoButton.ZIndex = 21
-	UI.infoButton.Parent = UI.actionBar
-
-	UI.infoStroke = Instance.new("UIStroke") -- Assign to the higher-scoped variable
-	UI.infoStroke.Color = Color3.new(1, 1, 1)
-	UI.infoStroke.Thickness = 1
-	UI.infoStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	UI.infoStroke.Parent = UI.infoButton
-
-	local infoCorner = Instance.new("UICorner")
-	infoCorner.CornerRadius = UDim.new(0, 6)
-	infoCorner.Parent = UI.infoButton
-	
-	-- Set Button attribute for sound system
-	UI.infoButton:SetAttribute("Button", true)
-end
-
-createActionBar()
-
--- Drop Button (right side) - Transparent with white stroke
-UI.dropButton = Instance.new("TextButton")
-UI.dropButton.Name = "DropButton"
-UI.dropButton.Size = UDim2.new(0, 70, 0, 34)
-UI.dropButton.Position = UDim2.new(1, -82, 0.5, -17)
-UI.dropButton.BackgroundTransparency = 1  -- Transparent background
-UI.dropButton.BorderSizePixel = 0
-UI.dropButton.Text = "ðŸ—‘ï¸ DROP"
-UI.dropButton.TextColor3 = Color3.new(1, 1, 1)  -- White text
-UI.dropButton.TextSize = 12
-UI.dropButton.Font = Enum.Font.GothamBold
-UI.dropButton.ZIndex = 21
-UI.dropButton.Parent = UI.actionBar
-
-UI.dropStroke = Instance.new("UIStroke") -- Assign to the higher-scoped variable
-UI.dropStroke.Color = Color3.new(1, 1, 1)  -- White stroke
-UI.dropStroke.Thickness = 1
-UI.dropStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-UI.dropStroke.Parent = UI.dropButton
-
-local dropCorner = Instance.new("UICorner")
-dropCorner.CornerRadius = UDim.new(0, 6)
-dropCorner.Parent = UI.dropButton
-
--- Set Button attribute for sound system
-UI.dropButton:SetAttribute("Button", true)
-
--- Selected item reference for action bar
 State.actionBarSelectedItem = nil
 
--- Item Info Modal (center of screen, shown when INFO clicked)
-local function createItemInfoModal()
-	UI.itemInfoModal = Instance.new("Frame")
-	UI.itemInfoModal.Name = "ItemInfoModal"
-	UI.itemInfoModal.Size = UDim2.new(0, 500, 0, 455)  -- Reduced by 1.1x
-	UI.itemInfoModal.Position = UDim2.new(0.5, 0, 0.5, 0)
-	UI.itemInfoModal.AnchorPoint = Vector2.new(0.5, 0.5)
-	UI.itemInfoModal.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-	UI.itemInfoModal.BorderSizePixel = 0
-	UI.itemInfoModal.ZIndex = 150
-	UI.itemInfoModal.Visible = false
-	UI.itemInfoModal.Parent = UI.screenGui
-
-	local modalCorner = Instance.new("UICorner")
-	modalCorner.CornerRadius = UDim.new(0, 12)
-	modalCorner.Parent = UI.itemInfoModal
-
-	local modalStroke = Instance.new("UIStroke")
-	modalStroke.Color = Color3.fromRGB(100, 100, 150)
-	modalStroke.Thickness = 3
-	modalStroke.Parent = UI.itemInfoModal
-
-	-- Modal Title Bar
-	local modalTitleBar = Instance.new("Frame")
-	modalTitleBar.Name = "TitleBar"
-	modalTitleBar.Size = UDim2.new(1, 0, 0, 40)
-	modalTitleBar.BackgroundColor3 = Color3.fromRGB(30, 30, 50)
-	modalTitleBar.BorderSizePixel = 0
-	modalTitleBar.ZIndex = 151
-	modalTitleBar.Parent = UI.itemInfoModal
-
-	local titleBarCorner = Instance.new("UICorner")
-	titleBarCorner.CornerRadius = UDim.new(0, 12)
-	titleBarCorner.Parent = modalTitleBar
-
-	UI.modalTitle = Instance.new("TextLabel")
-	UI.modalTitle.Name = "Title"
-	UI.modalTitle.Size = UDim2.new(1, -50, 1, 0)
-	UI.modalTitle.Position = UDim2.new(0, 15, 0, 0)
-	UI.modalTitle.BackgroundTransparency = 1
-	UI.modalTitle.Text = "ITEM INFORMATION"
-	UI.modalTitle.TextColor3 = Color3.new(1, 1, 1)
-	UI.modalTitle.TextXAlignment = Enum.TextXAlignment.Left
-	UI.modalTitle.TextSize = 16
-	UI.modalTitle.Font = Enum.Font.GothamBold
-	UI.modalTitle.ZIndex = 152
-	UI.modalTitle.Parent = modalTitleBar
-
-	UI.modalCloseBtn = Instance.new("TextButton")
-	UI.modalCloseBtn.Name = "CloseButton"
-	UI.modalCloseBtn.Size = UDim2.new(0, 30, 0, 30)
-	UI.modalCloseBtn.Position = UDim2.new(1, -35, 0.5, -15)
-	UI.modalCloseBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
-	UI.modalCloseBtn.BackgroundTransparency = 1  -- Transparent background
-	UI.modalCloseBtn.BorderSizePixel = 0
-	UI.modalCloseBtn.Text = "X"
-	UI.modalCloseBtn.TextColor3 = Color3.new(1, 1, 1)
-	UI.modalCloseBtn.TextSize = 14
-	UI.modalCloseBtn.Font = Enum.Font.GothamBold
-	UI.modalCloseBtn.ZIndex = 152
-	UI.modalCloseBtn.Parent = modalTitleBar
-	
-	-- Set Button attribute for sound system
-	UI.modalCloseBtn:SetAttribute("Button", true)
-
-	local closeBtnCorner = Instance.new("UICorner")
-	closeBtnCorner.CornerRadius = UDim.new(0, 6)
-	closeBtnCorner.Parent = UI.modalCloseBtn
-
-	-- Item Icon Section (left side) - stores references for dynamic rarity color updates
-	UI.modalIconFrame = Instance.new("Frame")
-	UI.modalIconFrame.Name = "IconFrame"
-	UI.modalIconFrame.Size = UDim2.new(0, 240, 0, 240)
-	UI.modalIconFrame.Position = UDim2.new(0, 20, 0, 60)
-	UI.modalIconFrame.BackgroundColor3 = ItemConfig.GetRarityFrameColor("Common")
-	UI.modalIconFrame.BackgroundTransparency = ItemConfig.GetRarityFrameTransparency()
-	UI.modalIconFrame.BorderSizePixel = 0
-	UI.modalIconFrame.ZIndex = 151
-	UI.modalIconFrame.Parent = UI.itemInfoModal
-
-	-- Stroke for icon frame (color updated dynamically based on item rarity)
-	UI.modalIconStroke = Instance.new("UIStroke")
-	UI.modalIconStroke.Name = "IconStroke"
-	UI.modalIconStroke.Color = ItemConfig.GetRarityColor("Common")
-	UI.modalIconStroke.Thickness = 2
-	UI.modalIconStroke.Parent = UI.modalIconFrame
-
-	-- Item Icon Image (inside icon frame) - full size to match frame
-	UI.modalIconImage = Instance.new("ImageLabel")
-	UI.modalIconImage.Name = "IconImage"
-	UI.modalIconImage.Size = UDim2.new(1, 0, 1, 0)
-	UI.modalIconImage.Position = UDim2.new(0, 0, 0, 0)
-	UI.modalIconImage.BackgroundTransparency = 1
-	UI.modalIconImage.Image = ""
-	UI.modalIconImage.ScaleType = Enum.ScaleType.Fit
-	UI.modalIconImage.ZIndex = 152
-	UI.modalIconImage.Parent = UI.modalIconFrame
-
-	-- Modal content labels (right side of icon)
-	UI.modalNameLabel = Instance.new("TextLabel")
-	UI.modalNameLabel.Name = "NameLabel"
-	UI.modalNameLabel.Size = UDim2.new(0, 250, 0, 30)
-	UI.modalNameLabel.Position = UDim2.new(0, 290, 0, 60)
-	UI.modalNameLabel.BackgroundTransparency = 1
-	UI.modalNameLabel.Text = "Item Name"
-	UI.modalNameLabel.TextColor3 = Color3.new(1, 1, 1)
-	UI.modalNameLabel.TextXAlignment = Enum.TextXAlignment.Left
-	UI.modalNameLabel.TextSize = 24
-	UI.modalNameLabel.Font = Enum.Font.GothamBold
-	UI.modalNameLabel.ZIndex = 152
-	UI.modalNameLabel.Parent = UI.itemInfoModal
-
-	UI.modalRarityLabel = Instance.new("TextLabel")
-	UI.modalRarityLabel.Name = "RarityLabel"
-	UI.modalRarityLabel.Size = UDim2.new(0, 250, 0, 20)
-	UI.modalRarityLabel.Position = UDim2.new(0, 290, 0, 95)
-	UI.modalRarityLabel.BackgroundTransparency = 1
-	UI.modalRarityLabel.Text = "Common"
-	UI.modalRarityLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-	UI.modalRarityLabel.TextXAlignment = Enum.TextXAlignment.Left
-	UI.modalRarityLabel.TextSize = 16
-	UI.modalRarityLabel.Font = Enum.Font.GothamBold
-	UI.modalRarityLabel.ZIndex = 152
-	UI.modalRarityLabel.Parent = UI.itemInfoModal
-
-	UI.modalWeightLabel = Instance.new("TextLabel")
-	UI.modalWeightLabel.Name = "WeightLabel"
-	UI.modalWeightLabel.Size = UDim2.new(0, 250, 0, 20)
-	UI.modalWeightLabel.Position = UDim2.new(0, 290, 0, 125)
-	UI.modalWeightLabel.BackgroundTransparency = 1
-	UI.modalWeightLabel.Text = "Weight: 1.0kg"
-	UI.modalWeightLabel.TextColor3 = Color3.fromRGB(180, 180, 220)
-	UI.modalWeightLabel.TextXAlignment = Enum.TextXAlignment.Left
-	UI.modalWeightLabel.TextSize = 14
-	UI.modalWeightLabel.Font = Enum.Font.Gotham
-	UI.modalWeightLabel.ZIndex = 152
-	UI.modalWeightLabel.Parent = UI.itemInfoModal
-
-	UI.modalValueLabel = Instance.new("TextLabel")
-	UI.modalValueLabel.Name = "ValueLabel"
-	UI.modalValueLabel.Size = UDim2.new(0, 250, 0, 20)
-	UI.modalValueLabel.Position = UDim2.new(0, 290, 0, 150)
-	UI.modalValueLabel.BackgroundTransparency = 1
-	UI.modalValueLabel.Text = "Value: 100 Gems"
-	UI.modalValueLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
-	UI.modalValueLabel.TextXAlignment = Enum.TextXAlignment.Left
-	UI.modalValueLabel.TextSize = 14
-	UI.modalValueLabel.Font = Enum.Font.Gotham
-	UI.modalValueLabel.ZIndex = 152
-	UI.modalValueLabel.Parent = UI.itemInfoModal
-
-	UI.modalSizeLabel = Instance.new("TextLabel")
-	UI.modalSizeLabel.Name = "SizeLabel"
-	UI.modalSizeLabel.Size = UDim2.new(0, 250, 0, 20)
-	UI.modalSizeLabel.Position = UDim2.new(0, 290, 0, 175)
-	UI.modalSizeLabel.BackgroundTransparency = 1
-	UI.modalSizeLabel.Text = "Grid Size: 1x1"
-	UI.modalSizeLabel.TextColor3 = Color3.fromRGB(150, 150, 250)
-	UI.modalSizeLabel.TextXAlignment = Enum.TextXAlignment.Left
-	UI.modalSizeLabel.TextSize = 14
-	UI.modalSizeLabel.Font = Enum.Font.Gotham
-	UI.modalSizeLabel.ZIndex = 152
-	UI.modalSizeLabel.Parent = UI.itemInfoModal
-
-	-- Description section (below everything)
-	local descHeader = Instance.new("TextLabel")
-	descHeader.Name = "DescHeader"
-	descHeader.Size = UDim2.new(1, -40, 0, 20)
-	descHeader.Position = UDim2.new(0, 20, 0, 310)
-	descHeader.BackgroundTransparency = 1
-	descHeader.Text = "DESCRIPTION"
-	descHeader.TextColor3 = Color3.fromRGB(150, 150, 180)
-	descHeader.TextXAlignment = Enum.TextXAlignment.Left
-	descHeader.TextSize = 12
-	descHeader.Font = Enum.Font.GothamBold
-	descHeader.ZIndex = 152
-	descHeader.Parent = UI.itemInfoModal
-
-	UI.modalDescLabel = Instance.new("TextLabel")
-	UI.modalDescLabel.Name = "DescLabel"
-	UI.modalDescLabel.Size = UDim2.new(1, -40, 0, 100)
-	UI.modalDescLabel.Position = UDim2.new(0, 20, 0, 335)
-	UI.modalDescLabel.BackgroundTransparency = 1
-	UI.modalDescLabel.Text = "This is a detailed description of the item."
-	UI.modalDescLabel.TextColor3 = Color3.new(1, 1, 1)
-	UI.modalDescLabel.TextXAlignment = Enum.TextXAlignment.Left
-	UI.modalDescLabel.TextYAlignment = Enum.TextYAlignment.Top
-	UI.modalDescLabel.TextSize = 14
-	UI.modalDescLabel.TextWrapped = true
-	UI.modalDescLabel.Font = Enum.Font.Gotham
-	UI.modalDescLabel.ZIndex = 152
-	UI.modalDescLabel.Parent = UI.itemInfoModal
-end
-
-createItemInfoModal()
-
--- Divider line below icon
-local modalDivider = Instance.new("Frame")
-modalDivider.Name = "Divider"
-modalDivider.Size = UDim2.new(1, -30, 0, 2)
-modalDivider.Position = UDim2.new(0, 15, 0, 325)
-modalDivider.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-modalDivider.BorderSizePixel = 0
-modalDivider.ZIndex = 151
-modalDivider.Parent = UI.itemInfoModal
-
-
+-- Item Info Modal (delegating to UIManager)
+UIManager.createItemInfoModal()
 
 local function showItemInfoModal(itemData)
-	local config = itemData.config
-	UI.modalTitle.Text = "ðŸ“¦ " .. config.name
-	UI.modalNameLabel.Text = config.name
-	UI.modalWeightLabel.Text = "Weight: " .. string.format("%.2f", config.weight) .. " KG"
-	UI.modalValueLabel.Text = "Price: $" .. tostring(config.price)
-	UI.modalRarityLabel.Text = "Rarity: " .. (config.rarity or "Common")
-	UI.modalSizeLabel.Text = "Grid Size: " .. tostring(itemData.width) .. "x" .. tostring(itemData.height)
-	UI.modalDescLabel.Text = config.description or "A useful item for your adventures."
-	
-	-- Set icon image from ItemConfig
-	UI.modalIconImage.Image = config.icon or ""
-	
-	-- Update modal icon frame colors based on item rarity
-	local rarity = config.rarity or "Common"
-	UI.modalIconFrame.BackgroundColor3 = ItemConfig.GetRarityFrameColor(rarity)
-	UI.modalIconStroke.Color = ItemConfig.GetRarityColor(rarity)
-	
-	UI.itemInfoModal.Visible = true
+	UIManager.showItemInfoModal(itemData)
 end
 
 local function hideItemInfoModal()
-	UI.itemInfoModal.Visible = false
+	UIManager.hideItemInfoModal()
 end
 
 UI.modalCloseBtn.MouseButton1Click:Connect(hideItemInfoModal)
 
 local function updateActionBar(itemData)
-	State.actionBarSelectedItem = itemData
-	if itemData then
-		UI.actionBar.Visible = true
-		UI.actionNameLabel.Text = itemData.config.name
-		UI.actionItemIcon.Image = itemData.config.icon or ""  -- Set item icon
-		
-		-- Update action icon colors based on item rarity
-		local rarity = itemData.config.rarity or "Common"
-		UI.actionItemIcon.BackgroundColor3 = ItemConfig.GetRarityFrameColor(rarity)
-		UI.actionIconStroke.Color = ItemConfig.GetRarityColor(rarity)
-	else
-		UI.actionBar.Visible = true -- Keep visible but clear content for consistency or hide if preferred
-		UI.actionBar.Visible = false
-		UI.actionNameLabel.Text = ""
-		UI.actionItemIcon.Image = ""  -- Clear icon
-		
-		-- Reset to default colors
-		UI.actionItemIcon.BackgroundColor3 = ItemConfig.GetRarityFrameColor("Common")
-		UI.actionIconStroke.Color = ItemConfig.GetRarityColor("Common")
-		
+	UIManager.updateActionBar(itemData, State)
+	if not itemData then
 		hideItemInfoModal()
 	end
 end
@@ -735,381 +146,63 @@ UI.dropButton.MouseLeave:Connect(function()
 end)
 
 -- ============================================================================
--- ============================================================================
--- MAIN CONTENT SCROLLING CONTAINER (holds armor + grid)
--- ============================================================================
-
-local function createContentScroll()
-	UI.contentScroll = Instance.new("ScrollingFrame")
-	UI.contentScroll.Name = "ContentScroll"
-	UI.contentScroll.Size = UDim2.new(0.47, 0, 1, -60)
-	UI.contentScroll.Position = UDim2.new(0, 0, 0, 50)
-	UI.contentScroll.BackgroundTransparency = 1
-	UI.contentScroll.BorderSizePixel = 0
-	UI.contentScroll.ScrollBarThickness = 8
-	UI.contentScroll.ScrollBarImageColor3 = Color3.fromRGB(100, 100, 130)
-	UI.contentScroll.ScrollBarImageTransparency = 1
-	UI.contentScroll.CanvasSize = UDim2.new(0, 0, 0, 1150)
-	UI.contentScroll.VerticalScrollBarPosition = Enum.VerticalScrollBarPosition.Left
-	UI.contentScroll.ZIndex = 10
-	UI.contentScroll.Parent = UI.mainPanel
-
-	local contentLayout = Instance.new("UIListLayout")
-	contentLayout.Name = "ContentLayout"
-	contentLayout.SortOrder = Enum.SortOrder.Name
-	contentLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-	contentLayout.VerticalAlignment = Enum.VerticalAlignment.Top
-	-- contentLayout.VerticalFlex = Enum.UIFlexAlignment.SpaceAround -- Removed if not available in some versions, or keep if sure
-	contentLayout.Padding = UDim.new(0, 20)
-	contentLayout.Parent = UI.contentScroll
-
-	-- Top Divider (transparent margin)
-	local topDivider = Instance.new("Frame")
-	topDivider.Name = "00_TopDivider"
-	topDivider.Size = UDim2.new(1, -40, 0, 10)
-	topDivider.BackgroundTransparency = 1
-	topDivider.BorderSizePixel = 0
-	topDivider.ZIndex = 11
-	topDivider.Parent = UI.contentScroll
-end
-
-createContentScroll()
-
--- ============================================================================
--- RIG CONTAINER (contains grid, below armor)
+-- MAIN CONTENT SCROLLING CONTAINER (delegating to UIManager)
 -- ============================================================================
 
-local function createRigContainer()
-	UI.rigContainer = Instance.new("Frame")
-	UI.rigContainer.Name = "2_RigContainer"
-	UI.rigContainer.Size = UDim2.new(1, -20, 0, 470)
-	UI.rigContainer.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-	UI.rigContainer.BackgroundTransparency = 0.5
-	UI.rigContainer.BorderSizePixel = 0
-	UI.rigContainer.ZIndex = 10
-	UI.rigContainer.Parent = UI.contentScroll
-
-	local rigContainerCorner = Instance.new("UICorner")
-	rigContainerCorner.CornerRadius = UDim.new(0, 8)
-	rigContainerCorner.Parent = UI.rigContainer
-
-	local rigContainerStroke = Instance.new("UIStroke")
-	rigContainerStroke.Color = Color3.fromRGB(70, 70, 100)
-	rigContainerStroke.Thickness = 1
-	rigContainerStroke.Parent = UI.rigContainer
-
-	local rigTitle = Instance.new("TextLabel")
-	rigTitle.Name = "RigTitle"
-	rigTitle.Size = UDim2.new(0, 140, 0, 25)
-	rigTitle.Position = UDim2.new(1, -150, 0, 8)
-	rigTitle.BackgroundTransparency = 1
-	rigTitle.Text = "Chest Rig Slot"
-	rigTitle.TextColor3 = Color3.fromRGB(200, 200, 220)
-	rigTitle.TextXAlignment = Enum.TextXAlignment.Right
-	rigTitle.TextSize = 14
-	rigTitle.Font = Enum.Font.GothamBold
-	rigTitle.ZIndex = 11
-	rigTitle.Parent = UI.rigContainer
-
-	UI.rigEquipSlot = Instance.new("Frame")
-	UI.rigEquipSlot.Name = "RigEquipSlot"
-	UI.rigEquipSlot.Size = UDim2.new(0.15, 0, 0.15, 0)
-	UI.rigEquipSlot.Position = UDim2.new(0.02, 0, 0.1, 0)
-	UI.rigEquipSlot.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-	UI.rigEquipSlot.BorderSizePixel = 0
-	UI.rigEquipSlot.ZIndex = 11
-	UI.rigEquipSlot.Parent = UI.rigContainer
-
-	local rigEquipStroke = Instance.new("UIStroke")
-	rigEquipStroke.Color = Color3.fromRGB(80, 80, 120)
-	rigEquipStroke.Thickness = 1
-	rigEquipStroke.Parent = UI.rigEquipSlot
-
-	UI.rigEquipIcon = Instance.new("ImageLabel")
-	UI.rigEquipIcon.Name = "RigEquipIcon"
-	UI.rigEquipIcon.Size = UDim2.new(0.85, 0, 0.85, 0)
-	UI.rigEquipIcon.Position = UDim2.new(0.075, 0, 0.075, 0)
-	UI.rigEquipIcon.BackgroundTransparency = 1
-	UI.rigEquipIcon.Image = "rbxassetid://128194988776053"
-	UI.rigEquipIcon.ImageColor3 = Color3.fromRGB(150, 150, 180)
-	UI.rigEquipIcon.ImageTransparency = 0.5
-	UI.rigEquipIcon.ScaleType = Enum.ScaleType.Fit
-	UI.rigEquipIcon.ZIndex = 12
-	UI.rigEquipIcon.Parent = UI.rigEquipSlot
-
-	UI.gridContainer = Instance.new("Frame")
-	UI.gridContainer.Name = "GridContainer"
-	UI.gridContainer.Size = UDim2.new(0, (Config.CELL_SIZE + Config.CELL_PADDING) * Config.GRID_COLS, 0, (Config.CELL_SIZE + Config.CELL_PADDING) * Config.GRID_ROWS)
-	UI.gridContainer.Position = UDim2.new(0.5, 0, 0, 55)  -- Fixed Y offset (55px) for proper alignment below title
-	UI.gridContainer.AnchorPoint = Vector2.new(0.5, 0)
-	UI.gridContainer.BackgroundTransparency = 1
-	UI.gridContainer.ZIndex = 10
-	UI.gridContainer.Parent = UI.rigContainer
-
-	Data.gridSlots = {}
-
-
-	for row = 1, Config.GRID_ROWS do
-		Data.gridSlots[row] = {}
-		for col = 1, Config.GRID_COLS do
-			local slot = Instance.new("Frame")
-			slot.Name = "Slot_" .. row .. "_" .. col
-			slot.Size = UDim2.new(0, Config.CELL_SIZE, 0, Config.CELL_SIZE)
-			slot.Position = UDim2.new(0, (col - 1) * (Config.CELL_SIZE + Config.CELL_PADDING), 0, (row - 1) * (Config.CELL_SIZE + Config.CELL_PADDING))
-			slot.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-			slot.BackgroundTransparency = 1
-			slot.BorderSizePixel = 0
-			slot.ZIndex = 10
-			slot.Parent = UI.gridContainer
-
-			local slotStroke = Instance.new("UIStroke")
-			slotStroke.Name = "SlotStroke"
-			slotStroke.Color = Color3.fromRGB(60, 60, 80)
-			slotStroke.Thickness = 1
-			slotStroke.Parent = slot
-
-			Data.gridSlots[row][col] = slot
-		end
-	end
-end
-
-createRigContainer()
+UIManager.createContentScroll()
 
 -- ============================================================================
--- BACKPACK CONTAINER (below grid, for backpack slot)
+-- RIG CONTAINER (delegating to UIManager)
 -- ============================================================================
 
-local function createBackpackContainer()
-	UI.backpackContainer = Instance.new("Frame")
-	UI.backpackContainer.Name = "3_BackpackContainer"
-	UI.backpackContainer.Size = UDim2.new(1, -20, 0, 120)
-	UI.backpackContainer.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-	UI.backpackContainer.BackgroundTransparency = 0.5
-	UI.backpackContainer.BorderSizePixel = 0
-	UI.backpackContainer.ZIndex = 10
-	UI.backpackContainer.Parent = UI.contentScroll
-
-	local backpackContainerCorner = Instance.new("UICorner")
-	backpackContainerCorner.CornerRadius = UDim.new(0, 8)
-	backpackContainerCorner.Parent = UI.backpackContainer
-
-	local backpackContainerStroke = Instance.new("UIStroke")
-	backpackContainerStroke.Color = Color3.fromRGB(70, 70, 100)
-	backpackContainerStroke.Thickness = 1
-	backpackContainerStroke.Parent = UI.backpackContainer
-
-	local backpackTitle = Instance.new("TextLabel")
-	backpackTitle.Name = "BackpackTitle"
-	backpackTitle.Size = UDim2.new(0, 140, 0, 25)
-	backpackTitle.Position = UDim2.new(1, -150, 0, 8)
-	backpackTitle.BackgroundTransparency = 1
-	backpackTitle.Text = "Backpack Slot"
-	backpackTitle.TextColor3 = Color3.fromRGB(200, 200, 220)
-	backpackTitle.TextXAlignment = Enum.TextXAlignment.Right
-	backpackTitle.TextSize = 14
-	backpackTitle.Font = Enum.Font.GothamBold
-	backpackTitle.ZIndex = 11
-	backpackTitle.Parent = UI.backpackContainer
-
-	UI.backpackSlotEquip = Instance.new("Frame")
-	UI.backpackSlotEquip.Name = "BackpackSlotEquip"
-	UI.backpackSlotEquip.Size = UDim2.new(0, 80, 0, 80)
-	UI.backpackSlotEquip.Position = UDim2.new(0.02, 0, 0.2, 0)
-	UI.backpackSlotEquip.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-	UI.backpackSlotEquip.BorderSizePixel = 0
-	UI.backpackSlotEquip.ZIndex = 11
-	UI.backpackSlotEquip.Parent = UI.backpackContainer
-
-	local backpackEquipStroke = Instance.new("UIStroke")
-	backpackEquipStroke.Color = Color3.fromRGB(80, 80, 120)
-	backpackEquipStroke.Thickness = 1
-	backpackEquipStroke.Parent = UI.backpackSlotEquip
-
-	UI.backpackSlotIcon = Instance.new("ImageLabel")
-	UI.backpackSlotIcon.Name = "BackpackSlotIcon"
-	UI.backpackSlotIcon.Size = UDim2.new(0.8, 0, 0.8, 0)
-	UI.backpackSlotIcon.Position = UDim2.new(0.1, 0, 0.1, 0)
-	UI.backpackSlotIcon.BackgroundTransparency = 1
-	UI.backpackSlotIcon.Image = "rbxassetid://128194988776053"
-	UI.backpackSlotIcon.ImageColor3 = Color3.fromRGB(150, 150, 180)
-	UI.backpackSlotIcon.ImageTransparency = 0.5
-	UI.backpackSlotIcon.ScaleType = Enum.ScaleType.Fit
-	UI.backpackSlotIcon.ZIndex = 12
-	UI.backpackSlotIcon.Parent = UI.backpackSlotEquip
-end
-
-createBackpackContainer()
+UIManager.createRigContainer(Config, Data)
 
 -- ============================================================================
--- LOOT INFO CONTAINER (shows equipment value and weight)
+-- BACKPACK CONTAINER (delegating to UIManager)
 -- ============================================================================
 
-local function createLootInfoContainer()
-	UI.lootInfoContainer = Instance.new("Frame")
-	UI.lootInfoContainer.Name = "0_LootInfo"
-	UI.lootInfoContainer.Size = UDim2.new(1, -20, 0, 35)
-	UI.lootInfoContainer.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-	UI.lootInfoContainer.BackgroundTransparency = 0.5
-	UI.lootInfoContainer.BorderSizePixel = 0
-	UI.lootInfoContainer.ZIndex = 10
-	UI.lootInfoContainer.Parent = UI.contentScroll
-
-	local lootInfoCorner = Instance.new("UICorner")
-	lootInfoCorner.CornerRadius = UDim.new(0, 6)
-	lootInfoCorner.Parent = UI.lootInfoContainer
-
-	local lootInfoStroke = Instance.new("UIStroke")
-	lootInfoStroke.Color = Color3.fromRGB(70, 70, 100)
-	lootInfoStroke.Thickness = 1
-	lootInfoStroke.Parent = UI.lootInfoContainer
-
-	UI.equipmentValueLabel = Instance.new("TextLabel")
-	UI.equipmentValueLabel.Name = "EquipmentValueLabel"
-	UI.equipmentValueLabel.Size = UDim2.new(0.5, 0, 1, 0)
-	UI.equipmentValueLabel.Position = UDim2.new(0, 10, 0, 0)
-	UI.equipmentValueLabel.BackgroundTransparency = 1
-	UI.equipmentValueLabel.Text = "Equipment Value: "
-	UI.equipmentValueLabel.TextColor3 = Color3.fromRGB(200, 200, 220)
-	UI.equipmentValueLabel.TextSize = 14
-	UI.equipmentValueLabel.TextXAlignment = Enum.TextXAlignment.Left
-	UI.equipmentValueLabel.Font = Enum.Font.GothamBold
-	UI.equipmentValueLabel.ZIndex = 11
-	UI.equipmentValueLabel.Parent = UI.lootInfoContainer
-
-	UI.weightLabel = Instance.new("TextLabel")
-	UI.weightLabel.Name = "WeightLabel"
-	UI.weightLabel.Size = UDim2.new(0.4, 0, 1, 0)
-	UI.weightLabel.Position = UDim2.new(0.55, 0, 0, 0)
-	UI.weightLabel.BackgroundTransparency = 1
-	UI.weightLabel.Text = "0/65kg"
-	UI.weightLabel.TextColor3 = Color3.fromRGB(200, 200, 220)
-	UI.weightLabel.TextSize = 14
-	UI.weightLabel.TextXAlignment = Enum.TextXAlignment.Right
-	UI.weightLabel.Font = Enum.Font.GothamBold
-	UI.weightLabel.ZIndex = 11
-	UI.weightLabel.Parent = UI.lootInfoContainer
-end
-
-createLootInfoContainer()
+UIManager.createBackpackContainer()
 
 -- ============================================================================
--- ARMOR EQUIPMENT CONTAINER
+-- LOOT INFO CONTAINER (delegating to UIManager)
 -- ============================================================================
 
--- Forward declaration for canFitItemAnywhere (defined later in GRID UTILITY FUNCTIONS)
+UIManager.createLootInfoContainer()
+
+-- ============================================================================
+-- ARMOR EQUIPMENT CONTAINER (delegating to UIManager)
+-- ============================================================================
+
 local canFitItemAnywhere
 
-local function createArmorContainer()
-	UI.armorContainer = Instance.new("Frame")
-	UI.armorContainer.Name = "1_ArmorContainer"
-	UI.armorContainer.Size = UDim2.new(1, -20, 0, 550)
-	UI.armorContainer.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-	UI.armorContainer.BackgroundTransparency = 0.5
-	UI.armorContainer.BorderSizePixel = 0
-	UI.armorContainer.ZIndex = 10
-	UI.armorContainer.Parent = UI.contentScroll
+UIManager.createArmorContainer(Data)
 
-	local armorContainerCorner = Instance.new("UICorner")
-	armorContainerCorner.CornerRadius = UDim.new(0, 8)
-	armorContainerCorner.Parent = UI.armorContainer
-
-	local armorContainerStroke = Instance.new("UIStroke")
-	armorContainerStroke.Color = Color3.fromRGB(70, 70, 100)
-	armorContainerStroke.Thickness = 1
-	armorContainerStroke.Parent = UI.armorContainer
-
-	Data.armorSlots = {}
-
-	local armorSlotTypes = {
-		{ name = "Helmet", icon = "rbxassetid://74562094577384", scaleX = 0.30, scaleY = 0.02, scaleW = 0.35, scaleH = 0.20, iconSize = UDim2.new(1, 0, 1, 0), iconPos = UDim2.new(0, 0, 0, 0) },
-		{ name = "LeftArm", icon = "rbxassetid://70718158694267", scaleX = 0.03, scaleY = 0.24, scaleW = 0.23, scaleH = 0.31 },
-		{ name = "Armor", icon = "rbxassetid://73706008477424", scaleX = 0.30, scaleY = 0.24, scaleW = 0.35, scaleH = 0.31 },
-		{ name = "RightArm", icon = "rbxassetid://116177084120383", scaleX = 0.69, scaleY = 0.24, scaleW = 0.23, scaleH = 0.31 },
-		{ name = "Legging", icon = "rbxassetid://121631408860254", scaleX = 0.30, scaleY = 0.58, scaleW = 0.35, scaleH = 0.31 },
-	}
-
-	for _, slotInfo in ipairs(armorSlotTypes) do
-		local armorSlot = Instance.new("Frame")
-		armorSlot.Name = slotInfo.name .. "Slot"
-		armorSlot.Size = UDim2.new(slotInfo.scaleW, 0, slotInfo.scaleH, 0)
-		armorSlot.Position = UDim2.new(slotInfo.scaleX, 0, slotInfo.scaleY, 0)
-		armorSlot.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-		armorSlot.BorderSizePixel = 0
-		armorSlot.ZIndex = 11
-		armorSlot.Parent = UI.armorContainer
-
-		local armorSlotStroke = Instance.new("UIStroke")
-		armorSlotStroke.Color = Color3.fromRGB(80, 80, 120)
-		armorSlotStroke.Thickness = 1
-		armorSlotStroke.Parent = armorSlot
-
-		local iconImage = Instance.new("ImageLabel")
-		iconImage.Name = "Icon"
-		iconImage.Size = slotInfo.iconSize or UDim2.new(0.85, 0, 0.85, 0)
-		iconImage.Position = slotInfo.iconPos or UDim2.new(0.075, 0, 0.075, 0)
-		iconImage.BackgroundTransparency = 1
-		iconImage.Image = slotInfo.icon
-		iconImage.ImageColor3 = Color3.fromRGB(150, 150, 180)
-		iconImage.ImageTransparency = 0.5
-		iconImage.ScaleType = Enum.ScaleType.Fit
-		iconImage.ZIndex = 12
-		iconImage.Parent = armorSlot
-		
-		-- Equipped item icon (shown when armor is equipped)
-		local equippedIcon = Instance.new("ImageLabel")
-		equippedIcon.Name = "EquippedIcon"
-		equippedIcon.Size = UDim2.new(0.9, 0, 0.9, 0)
-		equippedIcon.Position = UDim2.new(0.05, 0, 0.05, 0)
-		equippedIcon.BackgroundTransparency = 1
-		equippedIcon.Image = ""
-		equippedIcon.ImageTransparency = 0
-		equippedIcon.ScaleType = Enum.ScaleType.Fit
-		equippedIcon.ZIndex = 13
-		equippedIcon.Visible = false
-		equippedIcon.Parent = armorSlot
-
-		Data.armorSlots[slotInfo.name] = {
-			frame = armorSlot,
-			icon = iconImage,
-			equippedIcon = equippedIcon,
-			equipped = nil,
-			slotName = slotInfo.name,
-			stroke = armorSlotStroke,
-		}
-		
-		-- Click handler for equipping/unequipping armor
-		armorSlot.InputBegan:Connect(function(input)
+local function setupArmorSlotHandlers()
+	for slotName, slotData in pairs(Data.armorSlots) do
+		slotData.frame.InputBegan:Connect(function(input)
 			if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-				local slotData = Data.armorSlots[slotInfo.name]
-				
-				-- Check if we have a selected item that's compatible armor
 				if State.selectedItem then
 					local itemConfig = State.selectedItem.config
-					if itemConfig and itemConfig.isArmor and itemConfig.slotType == slotInfo.name then
-						-- Block equipping if slot is already equipped
+					if itemConfig and itemConfig.isArmor and itemConfig.slotType == slotName then
 						if slotData and slotData.equipped then
 							return
 						end
 						
-						-- Equip the armor - use itemId for server lookup, instanceId for inventory removal
 						local armorItemId = itemConfig.itemId or itemConfig.name
-						local instanceId = itemConfig.id  -- The unique instance ID from inventory
-						
+						local instanceId = itemConfig.id
 						
 						if Events.ArmorEquip then
-							Events.ArmorEquip:FireServer("equip", armorItemId, slotInfo.name, instanceId)
+							Events.ArmorEquip:FireServer("equip", armorItemId, slotName, instanceId)
 						end
 						
-						-- Update slot visual
 						if slotData then
 							slotData.equippedIcon.Image = itemConfig.icon
 							slotData.equippedIcon.Visible = true
 							slotData.icon.Visible = false
 							slotData.equipped = armorItemId
-							slotData.stroke.Color = Color3.fromRGB(100, 255, 100) -- Green when equipped
+							slotData.stroke.Color = Color3.fromRGB(100, 255, 100)
 						end
 						
-						-- Deselect the item
 						if State.selectedItem and State.selectedItem.frame then
 							local itemStroke = State.selectedItem.frame:FindFirstChild("ItemStroke")
 							if itemStroke then
@@ -1119,7 +212,6 @@ local function createArmorContainer()
 						State.selectedItem = nil
 						UI.actionBar.Visible = false
 						
-						-- Reset slot highlights
 						for name, data in pairs(Data.armorSlots) do
 							if not data.equipped then
 								data.stroke.Color = Color3.fromRGB(80, 80, 120)
@@ -1127,14 +219,11 @@ local function createArmorContainer()
 							end
 						end
 						
-						-- Play equip sound
 						local soundService = game:GetService("SoundService")
 						local equipSound = soundService:FindFirstChild("Button")
 						if equipSound then equipSound:Play() end
 					end
 				elseif slotData and slotData.equipped then
-					-- Clicked on equipped slot without item selected - UNEQUIP
-					-- First check if inventory has space for this armor item
 					local equippedItemId = slotData.equipped
 					local armorConfig = ItemConfig[equippedItemId] or ItemConfig.GetItem(equippedItemId)
 					
@@ -1142,25 +231,20 @@ local function createArmorContainer()
 						local itemWidth = armorConfig.width or 1
 						local itemHeight = armorConfig.height or 1
 						
-						-- Check if inventory has space for this armor
 						if not canFitItemAnywhere(itemWidth, itemHeight) then
-							-- No space in inventory - don't unequip!
 							return
 						end
 					end
 					
-					
 					if Events.ArmorEquip then
-						Events.ArmorEquip:FireServer("unequip", slotInfo.name)
+						Events.ArmorEquip:FireServer("unequip", slotName)
 					end
 					
-					-- Update slot visual (will be synced from server, but update immediately for feedback)
 					slotData.equippedIcon.Visible = false
 					slotData.icon.Visible = true
 					slotData.equipped = nil
 					slotData.stroke.Color = Color3.fromRGB(80, 80, 120)
 					
-					-- Play unequip sound
 					local soundService = game:GetService("SoundService")
 					local equipSound = soundService:FindFirstChild("Button")
 					if equipSound then equipSound:Play() end
@@ -1170,426 +254,47 @@ local function createArmorContainer()
 	end
 end
 
-createArmorContainer()
+setupArmorSlotHandlers()
 
 -- ============================================================================
--- PLAYER CONTAINER (Viewport + Health)
+-- PLAYER AND CHEST CONTAINERS (delegating to UIManager)
 -- ============================================================================
 
-local function createPlayerAndChestContainers()
-	UI.PlayerContainer = Instance.new("Frame")
-	UI.PlayerContainer.Name = "PlayerContainer"
-	UI.PlayerContainer.Size = UDim2.new(0.5, 0, 1, -60)
-	UI.PlayerContainer.Position = UDim2.new(0.5, 0, 0, 50)
-	UI.PlayerContainer.BackgroundTransparency = 1
-	UI.PlayerContainer.ClipsDescendants = true
-	UI.PlayerContainer.Parent = UI.mainPanel
-
-	UI.ChestContainer = Instance.new("Frame")
-	UI.ChestContainer.Name = "ChestContainer"
-	UI.ChestContainer.Size = UDim2.new(0.49, 0, 1, -60)
-	UI.ChestContainer.Position = UDim2.new(0.5, 0, 0, 50)
-	UI.ChestContainer.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-	UI.ChestContainer.BackgroundTransparency = 0.5
-	UI.ChestContainer.ClipsDescendants = true
-	UI.ChestContainer.Visible = false
-	UI.ChestContainer.Active = true -- Enable for touch capture
-	UI.ChestContainer.Parent = UI.mainPanel
-
-	local chestContainerCorner = Instance.new("UICorner")
-	chestContainerCorner.CornerRadius = UDim.new(0, 8)
-	chestContainerCorner.Parent = UI.ChestContainer
-
-	local chestContainerStroke = Instance.new("UIStroke")
-	chestContainerStroke.Color = Color3.fromRGB(70, 70, 100)
-	chestContainerStroke.Thickness = 1
-	chestContainerStroke.Parent = UI.ChestContainer
-
-	UI.chestNameLabel = Instance.new("TextLabel")
-	UI.chestNameLabel.Name = "ChestNameLabel"
-	UI.chestNameLabel.Size = UDim2.new(0.5, 0, 0, 30)
-	UI.chestNameLabel.Position = UDim2.new(0.02, 0, 0.02, 0)
-	UI.chestNameLabel.BackgroundTransparency = 1
-	UI.chestNameLabel.Text = "Wooden Chest"
-	UI.chestNameLabel.TextColor3 = Color3.fromRGB(255, 220, 100)
-	UI.chestNameLabel.TextSize = 18
-	UI.chestNameLabel.TextXAlignment = Enum.TextXAlignment.Left
-	UI.chestNameLabel.Font = Enum.Font.GothamBold
-	UI.chestNameLabel.ZIndex = 12
-	UI.chestNameLabel.Parent = UI.ChestContainer
-
-	-- Chest grid container (will be populated dynamically based on chest type)
-	UI.gridContainerChest = Instance.new("Frame")
-	UI.gridContainerChest.Name = "GridContainerChest"
-	UI.gridContainerChest.Position = UDim2.new(0.06, 0, 0.09, 0)
-	UI.gridContainerChest.AnchorPoint = Vector2.new(0, 0)
-	UI.gridContainerChest.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-	UI.gridContainerChest.BackgroundTransparency = 0.5
-	UI.gridContainerChest.ZIndex = 11
-	UI.gridContainerChest.Active = true
-	UI.gridContainerChest.Parent = UI.ChestContainer
-	
-	-- Initialize empty (will be created dynamically when chest opens)
-	Data.chestGridSlots = {}
-	
-	-- Opening overlay (shows during chest opening delay)
-	UI.chestOpeningOverlay = Instance.new("Frame")
-	UI.chestOpeningOverlay.Name = "OpeningOverlay"
-	UI.chestOpeningOverlay.Size = UDim2.new(1, 0, 1, 0)
-	UI.chestOpeningOverlay.Position = UDim2.new(0, 0, 0, 0)
-	UI.chestOpeningOverlay.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-	UI.chestOpeningOverlay.BackgroundTransparency = 0.5
-	UI.chestOpeningOverlay.ZIndex = 100  -- Above everything in chest container
-	UI.chestOpeningOverlay.Visible = false
-	UI.chestOpeningOverlay.Parent = UI.ChestContainer
-	
-	-- Progress bar (top-to-bottom reveal animation)
-	UI.chestOpeningProgress = Instance.new("Frame")
-	UI.chestOpeningProgress.Name = "ProgressBar"
-	UI.chestOpeningProgress.Size = UDim2.new(1, 0, 0, 0)  -- Starts at 0 height
-	UI.chestOpeningProgress.Position = UDim2.new(0, 0, 0, 0)
-	UI.chestOpeningProgress.BackgroundColor3 = Color3.fromRGB(50, 120, 80)
-	UI.chestOpeningProgress.BackgroundTransparency = 0.3
-	UI.chestOpeningProgress.BorderSizePixel = 0
-	UI.chestOpeningProgress.ZIndex = 101
-	UI.chestOpeningProgress.Parent = UI.chestOpeningOverlay
-	
-	-- "Opening..." text
-	UI.chestOpeningLabel = Instance.new("TextLabel")
-	UI.chestOpeningLabel.Name = "OpeningText"
-	UI.chestOpeningLabel.Size = UDim2.new(1, 0, 0, 50)
-	UI.chestOpeningLabel.Position = UDim2.new(0, 0, 0.4, 0)
-	UI.chestOpeningLabel.BackgroundTransparency = 1
-	UI.chestOpeningLabel.Text = "Opening..."
-	UI.chestOpeningLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-	UI.chestOpeningLabel.TextSize = 24
-	UI.chestOpeningLabel.Font = Enum.Font.GothamBold
-	UI.chestOpeningLabel.ZIndex = 102
-	UI.chestOpeningLabel.Parent = UI.chestOpeningOverlay
-end
-
-createPlayerAndChestContainers()
+UIManager.createPlayerAndChestContainers(Data, Config)
 
 -- ============================================================================
--- DYNAMIC CHEST GRID RECREATION
+-- DYNAMIC CHEST GRID RECREATION (delegating to UIManager)
 -- ============================================================================
 
--- Setup chest grid slot click for moving items (forward declaration)
 local setupChestSlotInput
 
--- Recreate chest grid based on current chest configuration
 local function recreateChestGrid()
-	local chestConf = State.currentChestConfig or { gridRows = 6, gridCols = 6 }
-	local cellSize = Config.CHEST.CELL_SIZE
-	local cellPadding = Config.CHEST.CELL_PADDING
-	
-	-- Check if grid already exists with correct size
-	local needsRecreate = false
-	if not Data.chestGridSlots or #Data.chestGridSlots == 0 then
-		needsRecreate = true
-	else
-		-- Check if size matches
-		local currentRows = #Data.chestGridSlots
-		local currentCols = Data.chestGridSlots[1] and #Data.chestGridSlots[1] or 0
-		if currentRows ~= chestConf.gridRows or currentCols ~= chestConf.gridCols then
-			needsRecreate = true
-		end
-	end
-	
-	-- Only recreate if needed
-	if not needsRecreate then
-		return
-	end
-	
-	-- Clear existing slots
-	for _, rowSlots in pairs(Data.chestGridSlots) do
-		if type(rowSlots) == "table" then
-			for _, slot in pairs(rowSlots) do
-				if slot and slot.Parent then
-					slot:Destroy()
-				end
-			end
-		end
-	end
-	Data.chestGridSlots = {}
-	
-	-- Resize container based on chest config
-	UI.gridContainerChest.Size = UDim2.new(
-		0, chestConf.gridCols * cellSize + (chestConf.gridCols - 1) * cellPadding,
-		0, chestConf.gridRows * cellSize + (chestConf.gridRows - 1) * cellPadding
-	)
-	
-	-- Create new slots based on chest config
-	for row = 1, chestConf.gridRows do
-		Data.chestGridSlots[row] = {}
-		for col = 1, chestConf.gridCols do
-			local slot = Instance.new("Frame")
-			slot.Name = "ChestSlot_" .. row .. "_" .. col
-			slot.Size = UDim2.new(0, cellSize, 0, cellSize)
-			slot.Position = UDim2.new(0, (col - 1) * (cellSize + cellPadding), 0, (row - 1) * (cellSize + cellPadding))
-			slot.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-			slot.BackgroundTransparency = 1
-			slot.BorderSizePixel = 0
-			slot.ZIndex = 12
-			slot.Parent = UI.gridContainerChest
-
-			local slotStroke = Instance.new("UIStroke")
-			slotStroke.Name = "SlotStroke"
-			slotStroke.Color = Color3.fromRGB(60, 60, 80)
-			slotStroke.Thickness = 1
-			slotStroke.Parent = slot
-
-			Data.chestGridSlots[row][col] = slot
-			
-			-- Setup input handler for this slot
-			if setupChestSlotInput then
-				setupChestSlotInput(slot, row, col)
-			end
-		end
-	end
+	UIManager.recreateChestGrid(Config, State, Data, setupChestSlotInput)
 end
 
-
 -- ============================================================================
--- CHARACTER VIEWPORT FRAME
+-- CHARACTER VIEWPORT (delegating to UIManager)
 -- ============================================================================
 
-local function createCharacterViewport()
-	UI.viewportFrame = Instance.new("ViewportFrame")
-	UI.viewportFrame.Name = "CharacterViewport"
-	UI.viewportFrame.Size = UDim2.new(0.6, 0, 1, 0)  -- 60% width, full height
-	UI.viewportFrame.Position = UDim2.new(-0.06, 0, 0, 0)  -- Slightly left overflow
-	UI.viewportFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-	UI.viewportFrame.BackgroundTransparency = 1
-	UI.viewportFrame.BorderSizePixel = 0
-	UI.viewportFrame.ZIndex = 11
-	UI.viewportFrame.Parent = UI.PlayerContainer  -- Parent to PlayerContainer
+UIManager.createCharacterViewport(State)
+UIManager.setupViewportRotation(State)
 
-	-- Create WorldModel for viewport
-	UI.worldModel = Instance.new("WorldModel")
-	UI.worldModel.Name = "CharacterModel"
-	UI.worldModel.Parent = UI.viewportFrame
-
-	-- Create camera for viewport
-	UI.viewportCamera = Instance.new("Camera")
-	UI.viewportCamera.Name = "ViewportCamera"
-	UI.viewportCamera.Parent = UI.viewportFrame
-	UI.viewportFrame.CurrentCamera = UI.viewportCamera
-
-	-- Rotation state in State table
-	State.viewportCurrentRotationY = 180
-	State.viewportIsRotating = false
-	State.viewportLastMousePos = nil
-	State.viewportCharClone = nil
-
-	-- Interaction for rotating character
-	UI.viewportFrame.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-			State.viewportIsRotating = true
-			State.viewportLastMousePos = input.Position
-		end
-	end)
-
-	Services.UserInputService.InputChanged:Connect(function(input)
-		if State.viewportIsRotating and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-			if State.viewportLastMousePos then
-				local delta = input.Position.X - State.viewportLastMousePos.X
-				State.viewportCurrentRotationY = State.viewportCurrentRotationY + (delta * 0.5) -- Adjust sensitivity here (Flipped direction)
-				State.viewportLastMousePos = input.Position
-
-				if State.viewportCharClone then
-					local cloneRoot = State.viewportCharClone:FindFirstChild("HumanoidRootPart")
-					if cloneRoot then
-						cloneRoot.CFrame = CFrame.new(0, 0, 0) * CFrame.Angles(0, math.rad(State.viewportCurrentRotationY), 0)
-					end
-				end
-			end
-		end
-	end)
-
-	Services.UserInputService.InputEnded:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-			State.viewportIsRotating = false
-			State.viewportLastMousePos = nil
-		end
-	end)
-end
-
-createCharacterViewport()
-
--- Function to clone and setup character in viewport (STATIC - only called once)
 local function updateCharacterViewport()
-	-- Clear existing model
-	for _, child in ipairs(UI.worldModel:GetChildren()) do
-		child:Destroy()
-	end
-
-	local character = player.Character
-	if not character then return end
-
-	-- Wait for character to be fully loaded
-	local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
-	if not humanoidRootPart then return end
-
-	-- Clone character
-	local oldArchivable = character.Archivable
-	character.Archivable = true
-	State.viewportCharClone = character:Clone()
-
-	character.Archivable = oldArchivable
-
-	if State.viewportCharClone then
-		-- Remove scripts and clean up the model for static display
-		for _, desc in ipairs(State.viewportCharClone:GetDescendants()) do
-			if desc:IsA("BaseScript") or desc:IsA("LocalScript") then
-				desc:Destroy()
-			elseif desc:IsA("Humanoid") then
-				-- Disable humanoid display
-				desc.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
-			elseif desc:IsA("Animator") then
-				-- Stop all existing animation tracks and destroy animator
-				for _, track in ipairs(desc:GetPlayingAnimationTracks()) do
-					track:Stop()
-				end
-				desc:Destroy()  -- Remove old animator, we'll create a fresh one
-			end
-		end
-
-		-- Reset position to current rotation
-		local cloneRoot = State.viewportCharClone:FindFirstChild("HumanoidRootPart")
-		if cloneRoot then
-			cloneRoot.CFrame = CFrame.new(0, 0, 0) * CFrame.Angles(0, math.rad(State.viewportCurrentRotationY), 0)
-		end
-
-		State.viewportCharClone.Parent = UI.worldModel
-
-		-- Create fresh animator and load idle animation ONLY
-		local humanoid = State.viewportCharClone:FindFirstChildOfClass("Humanoid")
-		if humanoid then
-			-- Create a fresh animator (no inherited tracks)
-			local animator = Instance.new("Animator")
-			animator.Parent = humanoid
-
-			-- Load and play idle animation
-			local anim = Instance.new("Animation")
-			anim.AnimationId = "rbxassetid://115995667698768"
-			local track = animator:LoadAnimation(anim)
-			track.Looped = true
-			track.Priority = Enum.AnimationPriority.Idle
-			track:Play()
-		end
-
-		-- Position camera to see full body (front view)
-		UI.viewportCamera.CFrame = CFrame.new(Vector3.new(2.15, 0, 7), Vector3.new(0, 0, 0))
-	end
+	UIManager.updateCharacterViewport(player, State)
 end
 
--- NOTE: Character viewport is STATIC - only updates when panel opens
--- No CharacterAdded connection to avoid movement updates
-
 -- ============================================================================
--- STATUS CONTAINER (contains health bar and other status info)
+-- STATUS CONTAINER (delegating to UIManager)
 -- ============================================================================
 
-local function createStatusContainer()
-	UI.statusContainer = Instance.new("Frame")
-	UI.statusContainer.Name = "StatusContainer"
-	UI.statusContainer.Size = UDim2.new(0.37, 0, 1, 0)  -- 37% width, full height
-	UI.statusContainer.Position = UDim2.new(0.63, 0, 0, 0)  -- Right side after viewport
-	UI.statusContainer.BackgroundTransparency = 1
-	UI.statusContainer.BorderSizePixel = 0
-	UI.statusContainer.ZIndex = 11
-	UI.statusContainer.Parent = UI.PlayerContainer
+UIManager.createStatusContainer()
 
-	UI.healthBarContainer = Instance.new("Frame")
-	UI.healthBarContainer.Name = "HealthBarContainer"
-	UI.healthBarContainer.Size = UDim2.new(0.8, 0, 0, 9)
-	UI.healthBarContainer.Position = UDim2.new(0.1, 0, 0.08, 0)
-	UI.healthBarContainer.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-	UI.healthBarContainer.BorderSizePixel = 0
-	UI.healthBarContainer.ZIndex = 12
-	UI.healthBarContainer.Parent = UI.statusContainer  -- Parent to StatusContainer
-
-	UI.healthBarFill = Instance.new("Frame")
-	UI.healthBarFill.Name = "HealthFill"
-	UI.healthBarFill.Size = UDim2.new(1, 0, 1, 0)  -- Full health
-	UI.healthBarFill.Position = UDim2.new(0, 0, 0, 0)
-	UI.healthBarFill.AnchorPoint = Vector2.new(0, 0)
-	UI.healthBarFill.BackgroundColor3 = Color3.fromRGB(255, 255, 255)  -- White
-	UI.healthBarFill.BorderSizePixel = 0
-	UI.healthBarFill.ZIndex = 12
-	UI.healthBarFill.Parent = UI.healthBarContainer
-
-	local healthFillCorner = Instance.new("UICorner")
-	healthFillCorner.CornerRadius = UDim.new(0, 4)
-	healthFillCorner.Parent = UI.healthBarFill
-
-	-- Vertical divider between character model and health section
-	local characterDivider = Instance.new("Frame")
-	characterDivider.Name = "CharacterDivider"
-	characterDivider.Size = UDim2.new(0, 1, 1, 0)
-	characterDivider.Position = UDim2.new(0.55, 0, 0, 0)  -- Between viewport and status container
-	characterDivider.BackgroundColor3 = Color3.fromRGB(80, 80, 120)
-	characterDivider.BackgroundTransparency = 0.6
-	characterDivider.BorderSizePixel = 0
-	characterDivider.ZIndex = 11
-	characterDivider.Parent = UI.PlayerContainer
-
-	UI.healthLabel = Instance.new("TextLabel")
-	UI.healthLabel.Name = "HealthLabel"
-	UI.healthLabel.Size = UDim2.new(1, 0, 0, 20)
-	UI.healthLabel.Position = UDim2.new(0, 0, 0, -18)  -- Lower position (closer to bar)
-	UI.healthLabel.BackgroundTransparency = 1
-	UI.healthLabel.Text = "Health 100/100"
-	UI.healthLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-	UI.healthLabel.TextSize = 14
-	UI.healthLabel.TextXAlignment = Enum.TextXAlignment.Right  -- Align to right
-	UI.healthLabel.Font = Enum.Font.GothamBold
-	UI.healthLabel.ZIndex = 12
-	UI.healthLabel.Parent = UI.healthBarContainer
-end
-
-createStatusContainer()
-
--- Function to update health bar
 local function updateHealthBar()
-	local character = player.Character
-	if not character then return end
-
-	local humanoid = character:FindFirstChildOfClass("Humanoid")
-	if not humanoid then return end
-
-	local healthPercent = humanoid.Health / humanoid.MaxHealth
-	UI.healthBarFill.Size = UDim2.new(healthPercent, -4, 1, -4)  -- Horizontal resize
-
-	-- Update text label
-	UI.healthLabel.Text = string.format("Health %d/%d", math.floor(humanoid.Health), math.floor(humanoid.MaxHealth))
-
-	-- Color gradient: white at full, red at low
-	if healthPercent > 0.5 then
-		UI.healthBarFill.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-	elseif healthPercent > 0.25 then
-		UI.healthBarFill.BackgroundColor3 = Color3.fromRGB(255, 200, 150)
-	else
-		UI.healthBarFill.BackgroundColor3 = Color3.fromRGB(255, 100, 100)
-	end
+	UIManager.updateHealthBar(player)
 end
 
--- Connect health bar to actual health
--- Connect health bar to actual health
 local function connectHealthBar()
-	if State.healthConnection then
-		State.healthConnection:Disconnect()
-	end
-	
-	local character = player.Character
-	if not character then return end
-	
-	local humanoid = character:FindFirstChildOfClass("Humanoid")
-	if not humanoid then return end
-	
-	State.healthConnection = humanoid:GetPropertyChangedSignal("Health"):Connect(updateHealthBar)
-	updateHealthBar()
+	UIManager.connectHealthBar(player, State)
 end
 
 player.CharacterAdded:Connect(function(char)
@@ -1598,231 +303,67 @@ player.CharacterAdded:Connect(function(char)
 end)
 
 -- ============================================================================
--- GRID UTILITY FUNCTIONS
+-- GRID UTILITY FUNCTIONS (delegating to StateAndDataManager)
 -- ============================================================================
 
 local function canPlaceItem(width, height, startRow, startCol, excludeItemId)
-	-- Check bounds
-	if startRow < 1 or startCol < 1 then return false end
-	if startRow + height - 1 > Config.GRID_ROWS then return false end
-	if startCol + width - 1 > Config.GRID_COLS then return false end
-	
-	-- Check if cells are empty
-	for r = startRow, startRow + height - 1 do
-		for c = startCol, startCol + width - 1 do
-			local occupant = Data.gridData[r][c]
-			if occupant ~= nil and occupant ~= excludeItemId then
-				return false
-			end
-		end
-	end
-	
-	return true
+	return StateAndDataManager.canPlaceItem(width, height, startRow, startCol, excludeItemId)
 end
 
--- Check if an item of given dimensions can fit ANYWHERE in inventory (tries both orientations)
 canFitItemAnywhere = function(width, height)
-	-- Try normal orientation
-	for row = 1, Config.GRID_ROWS do
-		for col = 1, Config.GRID_COLS do
-			if canPlaceItem(width, height, row, col, nil) then
-				return true
-			end
-		end
-	end
-	
-	-- Try rotated if different dimensions
-	if width ~= height then
-		for row = 1, Config.GRID_ROWS do
-			for col = 1, Config.GRID_COLS do
-				if canPlaceItem(height, width, row, col, nil) then
-					return true
-				end
-			end
-		end
-	end
-	
-	return false
+	return StateAndDataManager.canFitItemAnywhere(width, height)
 end
 
 local function placeItemInGrid(itemId, width, height, startRow, startCol)
-	for r = startRow, startRow + height - 1 do
-		-- Bounds check for row
-		if r >= 1 and r <= Config.GRID_ROWS and Data.gridData[r] then
-			for c = startCol, startCol + width - 1 do
-				-- Bounds check for column
-				if c >= 1 and c <= Config.GRID_COLS then
-					Data.gridData[r][c] = itemId
-				end
-			end
-		end
-	end
+	StateAndDataManager.placeItemInGrid(itemId, width, height, startRow, startCol)
 end
 
 local function removeItemFromGrid(itemId)
-	for r = 1, Config.GRID_ROWS do
-		for c = 1, Config.GRID_COLS do
-			if Data.gridData[r][c] == itemId then
-				Data.gridData[r][c] = nil
-			end
-		end
-	end
+	StateAndDataManager.removeItemFromGrid(itemId)
 end
 
 -- ============================================================================
--- STORAGE GRID UTILITY FUNCTIONS
+-- STORAGE GRID UTILITY FUNCTIONS (delegating to StateAndDataManager)
 -- ============================================================================
 
 local function initializeStorageGridData()
-	Data.storageGridData = {}
-	for r = 1, Config.STORAGE.GRID_ROWS do
-		Data.storageGridData[r] = {}
-		for c = 1, Config.STORAGE.GRID_COLS do
-			Data.storageGridData[r][c] = nil
-		end
-	end
-	Data.storageItems = {}
+	StateAndDataManager.initializeStorageGridData()
 end
 
 local function removeItemFromStorageGrid(itemId)
-	for r = 1, Config.STORAGE.GRID_ROWS do
-		for c = 1, Config.STORAGE.GRID_COLS do
-			if Data.storageGridData[r] and Data.storageGridData[r][c] == itemId then
-				Data.storageGridData[r][c] = nil
-			end
-		end
-	end
+	StateAndDataManager.removeItemFromStorageGrid(itemId)
 end
 
 local function placeItemInStorageGrid(itemId, width, height, startRow, startCol)
-	for r = startRow, startRow + height - 1 do
-		for c = startCol, startCol + width - 1 do
-			if Data.storageGridData[r] then
-				Data.storageGridData[r][c] = itemId
-			end
-		end
-	end
+	StateAndDataManager.placeItemInStorageGrid(itemId, width, height, startRow, startCol)
 end
 
 local function canPlaceItemInStorage(width, height, startRow, startCol, excludeItemId)
-	if startRow < 1 or startCol < 1 then return false end
-	if startRow + height - 1 > Config.STORAGE.GRID_ROWS then return false end
-	if startCol + width - 1 > Config.STORAGE.GRID_COLS then return false end
-	
-	for r = startRow, startRow + height - 1 do
-		for c = startCol, startCol + width - 1 do
-			if Data.storageGridData[r] then
-				local occupant = Data.storageGridData[r][c]
-				if occupant ~= nil and occupant ~= excludeItemId then
-					return false
-				end
-			end
-		end
-	end
-	return true
+	return StateAndDataManager.canPlaceItemInStorage(width, height, startRow, startCol, excludeItemId)
 end
 
 -- ============================================================================
--- CHEST GRID UTILITY FUNCTIONS (parallel to inventory grid)
+-- CHEST GRID UTILITY FUNCTIONS (delegating to StateAndDataManager)
 -- ============================================================================
 
 local function initializeChestGridData()
-	Data.chestGridData = {}
-	local chestConf = State.currentChestConfig or { gridRows = 6, gridCols = 6 }
-	for r = 1, chestConf.gridRows do
-		Data.chestGridData[r] = {}
-		for c = 1, chestConf.gridCols do
-			Data.chestGridData[r][c] = nil
-		end
-	end
-	Data.chestItems = {}
+	StateAndDataManager.initializeChestGridData()
 end
 
 local function canPlaceItemInChest(width, height, startRow, startCol, excludeItemId)
-	-- Check bounds
-	local chestConf = State.currentChestConfig or { gridRows = 6, gridCols = 6 }
-	if startRow < 1 or startCol < 1 then return false end
-	if startRow + height - 1 > chestConf.gridRows then return false end
-	if startCol + width - 1 > chestConf.gridCols then return false end
-	
-	-- Check if cells are empty
-	for r = startRow, startRow + height - 1 do
-		for c = startCol, startCol + width - 1 do
-			if Data.chestGridData[r] then
-				local occupant = Data.chestGridData[r][c]
-				if occupant ~= nil and occupant ~= excludeItemId then
-					return false
-				end
-			end
-		end
-	end
-	
-	return true
+	return StateAndDataManager.canPlaceItemInChest(width, height, startRow, startCol, excludeItemId)
 end
 
 local function placeItemInChestGrid(itemId, width, height, startRow, startCol)
-	for r = startRow, startRow + height - 1 do
-		for c = startCol, startCol + width - 1 do
-			if Data.chestGridData[r] then
-				Data.chestGridData[r][c] = itemId
-			end
-		end
-	end
+	StateAndDataManager.placeItemInChestGrid(itemId, width, height, startRow, startCol)
 end
 
 local function removeItemFromChestGrid(itemId)
-	local chestConf = State.currentChestConfig or { gridRows = 6, gridCols = 6 }
-	for r = 1, chestConf.gridRows do
-		for c = 1, chestConf.gridCols do
-			if Data.chestGridData[r] and Data.chestGridData[r][c] == itemId then
-				Data.chestGridData[r][c] = nil
-			end
-		end
-	end
+	StateAndDataManager.removeItemFromChestGrid(itemId)
 end
 
--- SMART PLACEMENT for CHEST: Find best position for item at target cell (with rotation)
--- Same logic as findBestPlacement but for chest grid
 local function findBestChestPlacement(width, height, targetRow, targetCol, excludeItemId)
-	-- Try 1: Current orientation at target (exact position)
-	if canPlaceItemInChest(width, height, targetRow, targetCol, excludeItemId) then
-		return targetRow, targetCol, width, height, false
-	end
-	
-	-- Try 2: Rotated orientation at target (exact position)
-	if canPlaceItemInChest(height, width, targetRow, targetCol, excludeItemId) then
-		return targetRow, targetCol, height, width, true
-	end
-	
-	-- Try 3: Search nearby with NEGATIVE offsets prioritized
-	local maxOffset = math.max(width, height)
-	
-	for totalOffset = 1, maxOffset * 2 do
-		for offsetR = 0, math.min(totalOffset, maxOffset) do
-			local offsetC = totalOffset - offsetR
-			if offsetC <= maxOffset then
-				-- Try all sign combinations: (-,-), (-,+), (+,-), (+,+)
-				for _, signR in ipairs({-1, 1}) do
-					for _, signC in ipairs({-1, 1}) do
-						local tryRow = targetRow + (offsetR * signR)
-						local tryCol = targetCol + (offsetC * signC)
-						
-						-- Try current orientation
-						if canPlaceItemInChest(width, height, tryRow, tryCol, excludeItemId) then
-							return tryRow, tryCol, width, height, false
-						end
-						
-						-- Try rotated
-						if canPlaceItemInChest(height, width, tryRow, tryCol, excludeItemId) then
-							return tryRow, tryCol, height, width, true
-						end
-					end
-				end
-			end
-		end
-	end
-	
-	return nil, nil, nil, nil, nil  -- No valid position found
+	return StateAndDataManager.findBestChestPlacement(width, height, targetRow, targetCol, excludeItemId)
 end
 
 local function getGridPositionFromAbsolute(absX, absY)
@@ -1917,225 +458,63 @@ local function createItemFrame(itemConfig, width, height, row, col)
 end
 
 -- ============================================================================
--- HIGHLIGHT SYSTEM
+-- HIGHLIGHT SYSTEM (delegating to UIManager)
 -- ============================================================================
 
 local function clearHighlights()
-	if State.highlightOverlay and State.highlightOverlay.Parent then
-		State.highlightOverlay:Destroy()
-		State.highlightOverlay = nil
-	end
+	UIManager.clearHighlights(State)
 end
 
 local function highlightSlots(startRow, startCol, width, height, isValid)
-	clearHighlights()
-	
-	-- Don't show highlight if out of bounds
-	if startRow < 1 or startCol < 1 or startRow > Config.GRID_ROWS or startCol > Config.GRID_COLS then
-		return
-	end
-	
-	local color = isValid and Color3.fromRGB(100, 255, 100) or Color3.fromRGB(255, 100, 100)
-	
-	-- Create single highlight overlay with item size
-	State.highlightOverlay = Instance.new("Frame")
-	State.highlightOverlay.Name = "HighlightOverlay"
-	State.highlightOverlay.Size = UDim2.new(0, width * Config.CELL_SIZE + (width - 1) * Config.CELL_PADDING, 0, height * Config.CELL_SIZE + (height - 1) * Config.CELL_PADDING)
-	State.highlightOverlay.Position = UDim2.new(0, (startCol - 1) * (Config.CELL_SIZE + Config.CELL_PADDING), 0, (startRow - 1) * (Config.CELL_SIZE + Config.CELL_PADDING))
-	State.highlightOverlay.BackgroundColor3 = color
-	State.highlightOverlay.BackgroundTransparency = 0.7
-	State.highlightOverlay.BorderSizePixel = 0
-	State.highlightOverlay.ZIndex = 14  -- Above slots but below items
-	State.highlightOverlay.Parent = UI.gridContainer
-	
-	
-	local overlayStroke = Instance.new("UIStroke")
-	overlayStroke.Color = color
-	overlayStroke.Thickness = 3
-	overlayStroke.Parent = State.highlightOverlay
+	UIManager.highlightSlots(startRow, startCol, width, height, isValid, Config, State)
 end
 
-State.originalSlotOverlay = nil  -- Single overlay for original position highlight
-
 local function highlightOriginalSlot(row, col, width, height)
-	-- Clear previous overlay if exists
-	if State.originalSlotOverlay and State.originalSlotOverlay.Parent then
-		State.originalSlotOverlay:Destroy()
-	end
-	
-	-- Create single yellow overlay frame covering entire item size
-	State.originalSlotOverlay = Instance.new("Frame")
-	State.originalSlotOverlay.Name = "OriginalSlotOverlay"
-	State.originalSlotOverlay.Size = UDim2.new(0, width * Config.CELL_SIZE + (width - 1) * Config.CELL_PADDING, 0, height * Config.CELL_SIZE + (height - 1) * Config.CELL_PADDING)
-	State.originalSlotOverlay.Position = UDim2.new(0, (col - 1) * (Config.CELL_SIZE + Config.CELL_PADDING), 0, (row - 1) * (Config.CELL_SIZE + Config.CELL_PADDING))
-	State.originalSlotOverlay.BackgroundColor3 = Color3.fromRGB(255, 220, 100)  -- Yellow
-	State.originalSlotOverlay.BackgroundTransparency = 0.8
-	State.originalSlotOverlay.BorderSizePixel = 0
-	State.originalSlotOverlay.ZIndex = 12  -- Above slots but below items
-	State.originalSlotOverlay.Parent = UI.gridContainer
-	
-	
-	local overlayStroke = Instance.new("UIStroke")
-	overlayStroke.Color = Color3.fromRGB(255, 220, 100)  -- Yellow
-	overlayStroke.Thickness = 2
-	overlayStroke.Transparency = 0.3
-	overlayStroke.Parent = State.originalSlotOverlay
+	UIManager.highlightOriginalSlot(row, col, width, height, Config, State)
 end
 
 local function resetOriginalSlotHighlight(row, col, width, height)
-	-- Destroy the overlay
-	if State.originalSlotOverlay and State.originalSlotOverlay.Parent then
-		State.originalSlotOverlay:Destroy()
-		State.originalSlotOverlay = nil
-	end
+	UIManager.resetOriginalSlotHighlight(State)
 end
 
 -- ============================================================================
--- CHEST HIGHLIGHT SYSTEM (parallel to inventory highlights)
+-- CHEST HIGHLIGHT SYSTEM (delegating to UIManager)
 -- ============================================================================
 
-State.chestHighlightOverlay = nil
-State.chestOriginalSlotOverlay = nil
-
 local function clearChestHighlights()
-	if State.chestHighlightOverlay and State.chestHighlightOverlay.Parent then
-		State.chestHighlightOverlay:Destroy()
-		State.chestHighlightOverlay = nil
-	end
+	UIManager.clearChestHighlights(State)
 end
 
 local function highlightChestSlots(startRow, startCol, width, height, isValid)
-	clearChestHighlights()
-	
-	-- Use dynamic chest config for bounds checking
-	local chestConf = State.currentChestConfig or { gridRows = 6, gridCols = 6 }
-	if startRow < 1 or startCol < 1 or startRow > chestConf.gridRows or startCol > chestConf.gridCols then
-		return
-	end
-	
-	local color = isValid and Color3.fromRGB(100, 255, 100) or Color3.fromRGB(255, 100, 100)
-	local cellSize = Config.CHEST.CELL_SIZE
-	local cellPadding = Config.CHEST.CELL_PADDING
-	
-	State.chestHighlightOverlay = Instance.new("Frame")
-	State.chestHighlightOverlay.Name = "ChestHighlightOverlay"
-	State.chestHighlightOverlay.Size = UDim2.new(0, width * cellSize + (width - 1) * cellPadding, 0, height * cellSize + (height - 1) * cellPadding)
-	State.chestHighlightOverlay.Position = UDim2.new(0, (startCol - 1) * (cellSize + cellPadding), 0, (startRow - 1) * (cellSize + cellPadding))
-	State.chestHighlightOverlay.BackgroundColor3 = color
-	State.chestHighlightOverlay.BackgroundTransparency = 0.7
-	State.chestHighlightOverlay.BorderSizePixel = 0
-	State.chestHighlightOverlay.ZIndex = 14
-	State.chestHighlightOverlay.Parent = UI.gridContainerChest
-	
-	local overlayStroke = Instance.new("UIStroke")
-	overlayStroke.Color = color
-	overlayStroke.Thickness = 3
-	overlayStroke.Parent = State.chestHighlightOverlay
+	UIManager.highlightChestSlots(startRow, startCol, width, height, isValid, Config, State)
 end
 
 local function highlightChestOriginalSlot(row, col, width, height)
-	if State.chestOriginalSlotOverlay and State.chestOriginalSlotOverlay.Parent then
-		State.chestOriginalSlotOverlay:Destroy()
-	end
-	
-	local cellSize = Config.CHEST.CELL_SIZE
-	local cellPadding = Config.CHEST.CELL_PADDING
-	
-	State.chestOriginalSlotOverlay = Instance.new("Frame")
-	State.chestOriginalSlotOverlay.Name = "ChestOriginalSlotOverlay"
-	State.chestOriginalSlotOverlay.Size = UDim2.new(0, width * cellSize + (width - 1) * cellPadding, 0, height * cellSize + (height - 1) * cellPadding)
-	State.chestOriginalSlotOverlay.Position = UDim2.new(0, (col - 1) * (cellSize + cellPadding), 0, (row - 1) * (cellSize + cellPadding))
-	State.chestOriginalSlotOverlay.BackgroundColor3 = Color3.fromRGB(255, 220, 100)
-	State.chestOriginalSlotOverlay.BackgroundTransparency = 0.8
-	State.chestOriginalSlotOverlay.BorderSizePixel = 0
-	State.chestOriginalSlotOverlay.ZIndex = 12
-	State.chestOriginalSlotOverlay.Parent = UI.gridContainerChest
-	
-	local overlayStroke = Instance.new("UIStroke")
-	overlayStroke.Color = Color3.fromRGB(255, 220, 100)
-	overlayStroke.Thickness = 2
-	overlayStroke.Transparency = 0.3
-	overlayStroke.Parent = State.chestOriginalSlotOverlay
+	UIManager.highlightChestOriginalSlot(row, col, width, height, Config, State)
 end
 
 local function resetChestOriginalSlotHighlight()
-	if State.chestOriginalSlotOverlay and State.chestOriginalSlotOverlay.Parent then
-		State.chestOriginalSlotOverlay:Destroy()
-		State.chestOriginalSlotOverlay = nil
-	end
-end
-
-local function resetChestOriginalSlotHighlight()
-	if State.chestOriginalSlotOverlay and State.chestOriginalSlotOverlay.Parent then
-		State.chestOriginalSlotOverlay:Destroy()
-		State.chestOriginalSlotOverlay = nil
-	end
+	UIManager.resetChestOriginalSlotHighlight(State)
 end
 
 -- ============================================================================
--- STORAGE HIGHLIGHT SYSTEM (parallel to chest highlights)
+-- STORAGE HIGHLIGHT SYSTEM (delegating to UIManager)
 -- ============================================================================
-
-State.storageHighlightOverlay = nil
-State.storageOriginalSlotOverlay = nil
 
 local function clearStorageHighlights()
-	if State.storageHighlightOverlay and State.storageHighlightOverlay.Parent then
-		State.storageHighlightOverlay:Destroy()
-		State.storageHighlightOverlay = nil
-	end
+	UIManager.clearStorageHighlights(State)
 end
 
 local function highlightStorageSlots(startRow, startCol, width, height, isValid)
-	clearStorageHighlights()
-	
-	if startRow < 1 or startCol < 1 or startRow > Config.STORAGE.GRID_ROWS or startCol > Config.STORAGE.GRID_COLS then return end
-	
-	local color = isValid and Color3.fromRGB(100, 255, 100) or Color3.fromRGB(255, 100, 100)
-	
-	State.storageHighlightOverlay = Instance.new("Frame")
-	State.storageHighlightOverlay.Name = "StorageHighlightOverlay"
-	State.storageHighlightOverlay.Size = UDim2.new(0, width * Config.STORAGE.CELL_SIZE + (width - 1) * Config.STORAGE.CELL_PADDING, 0, height * Config.STORAGE.CELL_SIZE + (height - 1) * Config.STORAGE.CELL_PADDING)
-	State.storageHighlightOverlay.Position = UDim2.new(0, (startCol - 1) * (Config.STORAGE.CELL_SIZE + Config.STORAGE.CELL_PADDING), 0, (startRow - 1) * (Config.STORAGE.CELL_SIZE + Config.STORAGE.CELL_PADDING))
-	State.storageHighlightOverlay.BackgroundColor3 = color
-	State.storageHighlightOverlay.BackgroundTransparency = 0.7
-	State.storageHighlightOverlay.BorderSizePixel = 0
-	State.storageHighlightOverlay.ZIndex = 14
-	State.storageHighlightOverlay.Parent = UI.storageGridFrame
-	
-	local stroke = Instance.new("UIStroke")
-	stroke.Color = color
-	stroke.Thickness = 3
-	stroke.Parent = State.storageHighlightOverlay
+	UIManager.highlightStorageSlots(startRow, startCol, width, height, isValid, Config, State)
 end
 
 local function highlightStorageOriginalSlot(row, col, width, height)
-	if State.storageOriginalSlotOverlay and State.storageOriginalSlotOverlay.Parent then
-		State.storageOriginalSlotOverlay:Destroy()
-	end
-	
-	State.storageOriginalSlotOverlay = Instance.new("Frame")
-	State.storageOriginalSlotOverlay.Name = "StorageOriginalSlotOverlay"
-	State.storageOriginalSlotOverlay.Size = UDim2.new(0, width * Config.STORAGE.CELL_SIZE + (width - 1) * Config.STORAGE.CELL_PADDING, 0, height * Config.STORAGE.CELL_SIZE + (height - 1) * Config.STORAGE.CELL_PADDING)
-	State.storageOriginalSlotOverlay.Position = UDim2.new(0, (col - 1) * (Config.STORAGE.CELL_SIZE + Config.STORAGE.CELL_PADDING), 0, (row - 1) * (Config.STORAGE.CELL_SIZE + Config.STORAGE.CELL_PADDING))
-	State.storageOriginalSlotOverlay.BackgroundColor3 = Color3.fromRGB(255, 220, 100)
-	State.storageOriginalSlotOverlay.BackgroundTransparency = 0.8
-	State.storageOriginalSlotOverlay.BorderSizePixel = 0
-	State.storageOriginalSlotOverlay.ZIndex = 12
-	State.storageOriginalSlotOverlay.Parent = UI.storageGridFrame
-	
-	local stroke = Instance.new("UIStroke")
-	stroke.Color = Color3.fromRGB(255, 220, 100)
-	stroke.Thickness = 2
-	stroke.Transparency = 0.3
-	stroke.Parent = State.storageOriginalSlotOverlay
+	UIManager.highlightStorageOriginalSlot(row, col, width, height, Config, State)
 end
 
 local function resetStorageOriginalSlotHighlight()
-	if State.storageOriginalSlotOverlay and State.storageOriginalSlotOverlay.Parent then
-		State.storageOriginalSlotOverlay:Destroy()
-		State.storageOriginalSlotOverlay = nil
-	end
+	UIManager.resetStorageOriginalSlotHighlight(State)
 end
 
 -- ============================================================================
@@ -5681,80 +4060,11 @@ local function canPlaceInStorageGrid(row, col, width, height, excludeId)
 	return true
 end
 
-UI.storageContainer = Instance.new("Frame")
-UI.storageContainer.Name = "StorageContainer"
-UI.storageContainer.Size = UDim2.new(0.49, 0, 1, -60)
-UI.storageContainer.Position = UDim2.new(0.5, 0, 0, 50)
-UI.storageContainer.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-UI.storageContainer.BackgroundTransparency = 0.5
-UI.storageContainer.ClipsDescendants = true
-UI.storageContainer.Visible = false
-UI.storageContainer.Active = true
-UI.storageContainer.ZIndex = 10
-UI.storageContainer.Parent = UI.mainPanel
+-- ============================================================================
+-- STORAGE CONTAINER (delegating to UIManager)
+-- ============================================================================
 
-local storageContainerCorner = Instance.new("UICorner")
-storageContainerCorner.CornerRadius = UDim.new(0, 8)
-storageContainerCorner.Parent = UI.storageContainer
-
-local storageContainerStroke = Instance.new("UIStroke")
-storageContainerStroke.Color = Color3.fromRGB(70, 70, 100)
-storageContainerStroke.Thickness = 1
-storageContainerStroke.Parent = UI.storageContainer
-
-local storageTitle = Instance.new("TextLabel")
-storageTitle.Name = "StorageTitle"
-storageTitle.Size = UDim2.new(0.5, 0, 0, 30)
-storageTitle.Position = UDim2.new(0.02, 0, 0.02, 0)
-storageTitle.BackgroundTransparency = 1
-storageTitle.Text = "ðŸ“¦ STORAGE"
-storageTitle.TextColor3 = Color3.fromRGB(100, 180, 255)
-storageTitle.TextSize = 18
-storageTitle.TextXAlignment = Enum.TextXAlignment.Left
-storageTitle.Font = Enum.Font.GothamBold
-storageTitle.ZIndex = 12
-storageTitle.Parent = UI.storageContainer
-
-UI.storageGridFrame = Instance.new("Frame")
-UI.storageGridFrame.Name = "StorageGridFrame"
-local storageGridWidth = Config.STORAGE.GRID_COLS * Config.STORAGE.CELL_SIZE + (Config.STORAGE.GRID_COLS - 1) * Config.STORAGE.CELL_PADDING
-local storageGridHeight = Config.STORAGE.GRID_ROWS * Config.STORAGE.CELL_SIZE + (Config.STORAGE.GRID_ROWS - 1) * Config.STORAGE.CELL_PADDING
-UI.storageGridFrame.Size = UDim2.new(0, storageGridWidth, 0, storageGridHeight)
-UI.storageGridFrame.Position = UDim2.new(0.06, 0, 0.09, 0)
-UI.storageGridFrame.AnchorPoint = Vector2.new(0, 0)
-UI.storageGridFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-UI.storageGridFrame.BackgroundTransparency = 0.5
-UI.storageGridFrame.ZIndex = 11
-UI.storageGridFrame.Active = true
-UI.storageGridFrame.Parent = UI.storageContainer
-
-Data.storageGridSlots = {}
-
-for row = 1, Config.STORAGE.GRID_ROWS do
-	Data.storageGridSlots[row] = {}
-	for col = 1, Config.STORAGE.GRID_COLS do
-		local slot = Instance.new("Frame")
-		slot.Name = "StorageSlot_" .. row .. "_" .. col
-		slot.Size = UDim2.new(0, Config.STORAGE.CELL_SIZE, 0, Config.STORAGE.CELL_SIZE)
-		slot.Position = UDim2.new(0, (col - 1) * (Config.STORAGE.CELL_SIZE + Config.STORAGE.CELL_PADDING), 0, (row - 1) * (Config.STORAGE.CELL_SIZE + Config.STORAGE.CELL_PADDING))
-		slot.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-		slot.BackgroundTransparency = 1
-		slot.BorderSizePixel = 0
-		slot.ZIndex = 12
-		slot.Parent = UI.storageGridFrame
-		
-		local slotStroke = Instance.new("UIStroke")
-		slotStroke.Name = "SlotStroke"
-		slotStroke.Color = Color3.fromRGB(60, 60, 80)
-		slotStroke.Thickness = 1
-		slotStroke.Parent = slot
-		
-		Data.storageGridSlots[row][col] = slot
-		
-		-- Connect Input Handler
-		setupStorageSlotInput(slot, row, col)
-	end
-end
+UIManager.createStorageContainer(Data, Config, setupStorageSlotInput)
 
 -- Handle Storage Sync
 if Events.SyncStorage then
@@ -5807,65 +4117,7 @@ end
 -- STORAGE INTERACTION LOGIC (Restored)
 -- ============================================================================
 
-UI.storageOpenButton = Instance.new("TextButton")
-UI.storageOpenButton.Name = "StorageOpenButton"
-UI.storageOpenButton.Size = UDim2.new(0, 150, 0, 40)
-UI.storageOpenButton.Position = UDim2.new(0.5, 100, 0.5, 40) -- More to the right and up
-UI.storageOpenButton.AnchorPoint = Vector2.new(0, 0)
-UI.storageOpenButton.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-UI.storageOpenButton.BackgroundTransparency = 0.6
-UI.storageOpenButton.BorderSizePixel = 0
-UI.storageOpenButton.Text = ""
-UI.storageOpenButton.AutoButtonColor = false
-UI.storageOpenButton.Visible = false
-UI.storageOpenButton.ZIndex = 50
-UI.storageOpenButton.Parent = UI.screenGui
-
-local storageButtonCorner = Instance.new("UICorner")
-storageButtonCorner.CornerRadius = UDim.new(0, 8)
-storageButtonCorner.Parent = UI.storageOpenButton
-
-local storageButtonStroke = Instance.new("UIStroke")
-storageButtonStroke.Color = Color3.fromRGB(100, 150, 200)
-storageButtonStroke.Thickness = 2
-storageButtonStroke.Parent = UI.storageOpenButton
-
-local storageOpenIcon = Instance.new("ImageLabel")
-storageOpenIcon.Name = "Icon"
-storageOpenIcon.Size = UDim2.new(0, 30, 0, 30)
-storageOpenIcon.Position = UDim2.new(0, 6, 0.5, -15)
-storageOpenIcon.BackgroundTransparency = 1
-storageOpenIcon.Image = "rbxassetid://91638685038954"
-storageOpenIcon.ScaleType = Enum.ScaleType.Fit
-storageOpenIcon.ZIndex = 51
-storageOpenIcon.Parent = UI.storageOpenButton
-
-local storageOpenLabel = Instance.new("TextLabel")
-storageOpenLabel.Name = "OpenLabel"
-storageOpenLabel.Size = UDim2.new(1, -45, 1, 0)
-storageOpenLabel.Position = UDim2.new(0, 40, 0, 0)
-storageOpenLabel.BackgroundTransparency = 1
-storageOpenLabel.Text = "STORAGE"
-storageOpenLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-storageOpenLabel.TextSize = 16
-storageOpenLabel.Font = Enum.Font.GothamBold
-storageOpenLabel.ZIndex = 51
-storageOpenLabel.Parent = UI.storageOpenButton
-
--- Progress bar for opening animation (similar to chest)
-UI.storageOpenProgress = Instance.new("Frame")
-UI.storageOpenProgress.Name = "OpenProgress"
-UI.storageOpenProgress.Size = UDim2.new(0, 0, 1, 0) -- Starts empty
-UI.storageOpenProgress.Position = UDim2.new(0, 0, 0, 0)
-UI.storageOpenProgress.BackgroundColor3 = Color3.fromRGB(80, 160, 255)
-UI.storageOpenProgress.BackgroundTransparency = 0.5
-UI.storageOpenProgress.BorderSizePixel = 0
-UI.storageOpenProgress.ZIndex = 50 -- Below text
-UI.storageOpenProgress.Parent = UI.storageOpenButton
-
-local storageProgressCorner = Instance.new("UICorner")
-storageProgressCorner.CornerRadius = UDim.new(0, 8)
-storageProgressCorner.Parent = UI.storageOpenProgress
+UIManager.createStorageOpenButton()
 
 local function findNearbyStorage()
 	local character = player.Character
@@ -5946,7 +4198,7 @@ UI.storageOpenButton.MouseButton1Click:Connect(function()
 		if State.storageOpeningTween then return end
 		
 		-- Start opening animation (1 second)
-		storageOpenLabel.Text = "Opening..."
+		UI.storageOpenLabel.Text = "Opening..."
 		UI.storageOpenProgress.Size = UDim2.new(0, 0, 1, 0)
 		
 		local progressTween = Services.TweenService:Create(
@@ -5960,7 +4212,7 @@ UI.storageOpenButton.MouseButton1Click:Connect(function()
 		progressTween.Completed:Connect(function(playbackState)
 			if playbackState == Enum.PlaybackState.Completed then
 				openStoragePanel()
-				storageOpenLabel.Text = "STORAGE"
+				UI.storageOpenLabel.Text = "STORAGE"
 				UI.storageOpenProgress.Size = UDim2.new(0, 0, 1, 0)
 			end
 			State.storageOpeningTween = nil
